@@ -53,27 +53,59 @@ class BGRResv8BitPerColorPixelWriter : public PixelWriter {
     }
 };
 
+const PixelColor BK = {0, 0, 0};
+const PixelColor DG = {102, 102, 102};
+const PixelColor LG = {187, 187, 187};
+const PixelColor WH = {255, 255, 255};
+const int AEGIS_WIDTH = 20;
+const int AEGIS_HEIGHT = 34;
+const PixelColor AEGIS_BMP[AEGIS_WIDTH * AEGIS_HEIGHT] = {
+  WH, WH, WH, WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, WH, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, BK, BK, DG, DG, DG, DG, DG, DG, BK, BK, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, BK, DG, DG, LG, LG, LG, LG, LG, LG, DG, DG, BK, WH, WH, WH, WH,
+  WH, WH, WH, BK, DG, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, DG, BK, WH, WH, WH,
+  WH, WH, BK, DG, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, DG, BK, WH, WH,
+  WH, WH, BK, DG, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, DG, BK, WH, WH,
+  WH, BK, DG, LG, LG, WH, WH, LG, LG, LG, LG, LG, LG, LG, LG, LG, LG, DG, BK, WH,
+  WH, BK, DG, LG, LG, BK, BK, BK, WH, LG, LG, WH, BK, BK, BK, LG, LG, DG, BK, WH,
+  BK, DG, DG, LG, BK, WH, BK, BK, WH, WH, LG, WH, BK, BK, WH, BK, LG, DG, DG, BK,
+  BK, DG, DG, LG, WH, WH, WH, BK, WH, WH, WH, WH, WH, BK, WH, WH, LG, DG, DG, BK,
+  BK, DG, DG, LG, WH, WH, BK, BK, WH, WH, WH, WH, BK, BK, WH, WH, LG, DG, DG, BK,
+  WH, BK, DG, LG, WH, WH, WH, WH, WH, BK, WH, WH, WH, WH, WH, WH, LG, DG, BK, WH,
+  WH, WH, BK, LG, BK, WH, WH, WH, WH, WH, WH, WH, WH, WH, WH, BK, LG, BK, WH, WH,
+  WH, WH, WH, BK, LG, BK, WH, WH, WH, BK, BK, WH, WH, WH, BK, LG, BK, WH, WH, WH,
+  WH, WH, WH, WH, BK, BK, BK, BK, BK, WH, WH, BK, BK, BK, BK, BK, WH, WH, WH, WH,
+  WH, WH, WH, WH, BK, WH, BK, BK, BK, BK, BK, BK, BK, BK, BK, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, BK, BK, WH, WH, BK, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, BK, WH, WH, BK, BK, WH, WH,
+  WH, WH, WH, WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, WH, BK, WH, WH, WH, BK, WH,
+  WH, WH, WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, BK, BK, WH, BK, WH, WH, BK, WH,
+  WH, WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, WH, BK, BK, WH, WH,
+  WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, WH, WH, WH, WH,
+  WH, WH, WH, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, WH, WH, WH,
+  WH, WH, BK, WH, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, BK, WH, BK, WH, WH,
+  WH, WH, WH, BK, WH, WH, BK, BK, BK, BK, BK, BK, BK, BK, WH, WH, BK, WH, WH, WH,
+  WH, WH, WH, WH, BK, BK, WH, WH, WH, WH, WH, WH, WH, WH, BK, BK, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, WH, BK, BK, BK, BK, BK, BK, BK, BK, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, WH, BK, WH, WH, BK, DG, WH, WH, BK, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, WH, BK, DG, DG, BK, DG, DG, WH, BK, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, WH, BK, DG, DG, BK, BK, DG, DG, BK, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, WH, BK, DG, DG, BK, WH, BK, BK, WH, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, BK, DG, DG, DG, BK, WH, WH, WH, WH, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, BK, WH, WH, WH, BK, WH, WH, WH, WH, WH, WH, WH, WH, WH, WH,
+  WH, WH, WH, WH, WH, WH, BK, BK, BK, WH, WH, WH, WH, WH, WH, WH, WH, WH, WH, WH,
+};
+
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
 PixelWriter* pixel_writer;
 
-//int WritePixel(const FrameBufferConfig& config,
-//               int x, int y, const PixelColor& c) {
-//  const int pixel_position = config.pixels_per_scan_line * y + x;
-//  if (config.pixel_format == kPixelRGBResv8BitPerColor) {
-//    uint8_t* p = &config.frame_buffer[4 * pixel_position];
-//    p[0] = c.r;
-//    p[1] = c.g;
-//    p[2] = c.b;
-//  } else if (config.pixel_format == kPixelBGRResv8BitPerColor) {
-//    uint8_t* p = &config.frame_buffer[4 * pixel_position];
-//    p[0] = c.b;
-//    p[1] = c.g;
-//    p[2] = c.r;
-//  } else {
-//    return -1;
-//  }
-//  return 0;
-//}
+void WriteScaledPixel(PixelWriter* writer, int scale, int x, int y, const PixelColor& c) {
+  for (int px = 0; px < scale; ++px) {
+    for (int py = 0; py < scale; ++py) {
+      writer->Write(x * scale + px, y * scale + py, c);
+    }
+  }
+}
 
 extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   switch (frame_buffer_config.pixel_format) {
@@ -89,14 +121,12 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
 
   for (int x = 0; x < frame_buffer_config.horizontal_resolution; ++x) {
     for (int y = 0; y < frame_buffer_config.vertical_resolution; ++y) {
-      // WritePixel(frame_buffer_config, x, y, {255, 255, 255});
-      pixel_writer->Write(x, y, {255, 255, 255});
+      pixel_writer->Write(x, y, {0, 0, 0});
     }
   }
-  for (int x = 0; x < 200; ++x) {
-    for (int y = 0; y < 100; ++y) {
-      // WritePixel(frame_buffer_config, 100 + x, 100 + y, {0, 255, 0});
-      pixel_writer->Write(x, y, {0, 255, 0});
+  for (int x = 0; x < AEGIS_WIDTH; ++x) {
+    for (int y = 0; y < AEGIS_HEIGHT; ++y) {
+      WriteScaledPixel(pixel_writer, 4, x, y, AEGIS_BMP[x + y * AEGIS_WIDTH]);
     }
   }
   while (1) __asm__("hlt");
