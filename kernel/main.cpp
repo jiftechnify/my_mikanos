@@ -1,6 +1,8 @@
 #include <cstdint>
 #include <cstddef>
 #include "frame_buffer_config.hpp"
+#include "graphics.hpp"
+#include "font.hpp"
 
 void* operator new(size_t size, void* buf) {
   return buf;
@@ -8,50 +10,6 @@ void* operator new(size_t size, void* buf) {
 
 void operator delete(void* obj) noexcept {
 }
-
-struct PixelColor {
-  uint8_t r, g, b;
-};
-
-class PixelWriter {
-  public:
-    PixelWriter(const FrameBufferConfig& config): config_{config} {
-    }
-    virtual ~PixelWriter() = default;
-    virtual void Write(int x, int y, const PixelColor& c) = 0;
-
-  protected:
-    uint8_t* PixelAt(int x, int y) {
-      return config_.frame_buffer + 4 * (config_.pixels_per_scan_line * y + x);
-    }
-
-  private:
-    const FrameBufferConfig& config_;
-};
-
-class RGBResv8BitPerColorPixelWriter : public PixelWriter {
-  public:
-    using PixelWriter::PixelWriter;
-
-    virtual void Write(int x, int y, const PixelColor& c) override {
-      auto p = PixelAt(x, y);
-      p[0] = c.r;
-      p[1] = c.g;
-      p[2] = c.b;
-    }
-};
-
-class BGRResv8BitPerColorPixelWriter : public PixelWriter {
-  public:
-    using PixelWriter::PixelWriter;
-
-    virtual void Write(int x, int y, const PixelColor& c) override {
-      auto p = PixelAt(x, y);
-      p[0] = c.b;
-      p[1] = c.g;
-      p[2] = c.r;
-    }
-};
 
 const PixelColor BK = {0, 0, 0};
 const PixelColor DG = {102, 102, 102};
@@ -97,9 +55,6 @@ const uint8_t AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
   0xff, 0xf0, 0x3f, 0xff, 0xff,
 };
 
-char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
-PixelWriter* pixel_writer;
-
 void WriteScaledPixel(PixelWriter& writer, int scale, int x, int y, const PixelColor& c) {
   for (int px = 0; px < scale; ++px) {
     for (int py = 0; py < scale; ++py) {
@@ -134,6 +89,9 @@ uint8_t ColorNum2bitAt(const uint8_t* bmp_data, int x, int y) {
   return (bmp_data[data_idx] >> ((3 - px_idx) * 2)) & 0b11;
 }
 
+char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
+PixelWriter* pixel_writer;
+
 extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   switch (frame_buffer_config.pixel_format) {
     case kPixelRGBResv8BitPerColor:
@@ -157,6 +115,9 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
       WriteScaledPixel(*pixel_writer, 4, x, y, *c);
     }
   }
+
+  WriteAscii(*pixel_writer, 120, 50, 'A', WH);
+  WriteAscii(*pixel_writer, 128, 50, 'A', WH);
   while (1) __asm__("hlt");
 }
 
