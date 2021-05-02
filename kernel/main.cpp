@@ -60,7 +60,7 @@ const PixelColor WH = {255, 255, 255};
 const int AEGIS_WIDTH = 20;
 const int AEGIS_HEIGHT = 34;
 const int AEGIS_BMP_DATA_SIZE = (AEGIS_WIDTH * AEGIS_HEIGHT + 3) / 4;
-const unsigned char AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
+const uint8_t AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
   0xff, 0xfc, 0x00, 0x3f, 0xff,
   0xff, 0xc1, 0x55, 0x43, 0xff,
   0xff, 0x16, 0xaa, 0x94, 0xff,
@@ -108,7 +108,7 @@ void WriteScaledPixel(PixelWriter* writer, int scale, int x, int y, const PixelC
   }
 }
 
-const PixelColor* ColorFromColorNum2bit(unsigned char colNum) {
+const PixelColor* ColorFromColorNum2bit(uint8_t colNum) {
   switch (colNum) {
     case 0b00:
       return &BK;
@@ -127,7 +127,7 @@ const PixelColor* ColorFromColorNum2bit(unsigned char colNum) {
   }
 }
 
-unsigned char ColorNum2bitAt(const unsigned char* bmp_data, int x, int y) {
+uint8_t ColorNum2bitAt(const uint8_t* bmp_data, int x, int y) {
   int i = x + y * AEGIS_WIDTH;
   int data_idx = i / 4;
   int px_idx = i % 4;
