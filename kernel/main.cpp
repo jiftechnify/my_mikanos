@@ -4,6 +4,7 @@
 #include "frame_buffer_config.hpp"
 #include "graphics.hpp"
 #include "font.hpp"
+#include "console.hpp"
 
 void* operator new(size_t size, void* buf) {
   return buf;
@@ -56,10 +57,10 @@ const uint8_t AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
   0xff, 0xf0, 0x3f, 0xff, 0xff,
 };
 
-void WriteScaledPixel(PixelWriter& writer, int scale, int x, int y, const PixelColor& c) {
-  for (int px = 0; px < scale; ++px) {
-    for (int py = 0; py < scale; ++py) {
-      writer.Write(x * scale + px, y * scale + py, c);
+void WriteScaledPixel(PixelWriter& writer, int scale, int left_x, int top_y, int px, int py, const PixelColor& c) {
+  for (int dx = 0; dx < scale; ++dx) {
+    for (int dy = 0; dy < scale; ++dy) {
+      writer.Write(left_x + px*scale + dx, top_y + py*scale + dy, c);
     }
   }
 }
@@ -93,6 +94,22 @@ uint8_t ColorNum2bitAt(const uint8_t* bmp_data, int x, int y) {
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
 PixelWriter* pixel_writer;
 
+char console_buf[sizeof(Console)];
+Console* console;
+
+int printk(const char* format, ...) {
+  va_list ap;
+  int result;
+  char s[1024];
+
+  va_start(ap, format);
+  result = vsprintf(s, format, ap);
+  va_end(ap);
+
+  console->PutString(s);
+  return result;
+}
+
 extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   switch (frame_buffer_config.pixel_format) {
     case kPixelRGBResv8BitPerColor:
@@ -104,29 +121,25 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
         BGRResv8BitPerColorPixelWriter{frame_buffer_config};
       break;
   }
+  console = new(console_buf) Console{*pixel_writer, WH, BK};
 
   for (int x = 0; x < frame_buffer_config.horizontal_resolution; ++x) {
     for (int y = 0; y < frame_buffer_config.vertical_resolution; ++y) {
       pixel_writer->Write(x, y, {0, 0, 0});
     }
   }
-  for (int x = 0; x < AEGIS_WIDTH; ++x) {
-    for (int y = 0; y < AEGIS_HEIGHT; ++y) {
-      const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, x, y));
-      WriteScaledPixel(*pixel_writer, 4, x, y, *c);
+
+  for (int px = 0; px < AEGIS_WIDTH; ++px) {
+    for (int py = 0; py < AEGIS_HEIGHT; ++py) {
+      const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, px, py));
+      WriteScaledPixel(*pixel_writer, 4, 0, 400, px, py, *c);
     }
   }
-
-  int i = 0;
-  for (char c = '!'; c <= '~'; ++c, ++i) {
-    WriteAscii(*pixel_writer, 8 * i, 150, c, WH);
+  WriteString(*pixel_writer, 90, 520, "<- Aegis chan", WH);
+ 
+  for (int i = 0; i < 27; ++i) {
+    printk("printk: %d\n", i);
   }
-  WriteString(*pixel_writer, 90, 120, "<- Aegis chan", WH);
-  WriteString(*pixel_writer, 0, 166, "Hello, world!", WH);
-
-  char buf[128];
-  sprintf(buf, "1 + 2 = %d", 1 + 2);
-  WriteString(*pixel_writer, 0, 182, buf, WH);
 
   while (1) __asm__("hlt");
 }
