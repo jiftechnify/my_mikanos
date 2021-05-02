@@ -100,10 +100,10 @@ const uint8_t AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
 PixelWriter* pixel_writer;
 
-void WriteScaledPixel(PixelWriter* writer, int scale, int x, int y, const PixelColor& c) {
+void WriteScaledPixel(PixelWriter& writer, int scale, int x, int y, const PixelColor& c) {
   for (int px = 0; px < scale; ++px) {
     for (int py = 0; py < scale; ++py) {
-      writer->Write(x * scale + px, y * scale + py, c);
+      writer.Write(x * scale + px, y * scale + py, c);
     }
   }
 }
@@ -154,7 +154,7 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   for (int x = 0; x < AEGIS_WIDTH; ++x) {
     for (int y = 0; y < AEGIS_HEIGHT; ++y) {
       const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, x, y));
-      WriteScaledPixel(pixel_writer, 4, x, y, *c);
+      WriteScaledPixel(*pixel_writer, 4, x, y, *c);
     }
   }
   while (1) __asm__("hlt");
