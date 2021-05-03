@@ -5,13 +5,7 @@
 #include "graphics.hpp"
 #include "font.hpp"
 #include "console.hpp"
-
-void* operator new(size_t size, void* buf) {
-  return buf;
-}
-
-void operator delete(void* obj) noexcept {
-}
+#include "pci.hpp"
 
 const PixelColor BK{0, 0, 0};
 const PixelColor DG{102, 102, 102};
@@ -181,7 +175,18 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
     }
   }
   WriteString(*pixel_writer, 90, 520, "<- Aegis chan", BK);
- 
+
+  auto err = pci::ScanAllBus();
+  printk("ScanAllBus: %s\n", err.Name());
+
+  for (int i = 0; i < pci::num_device; ++i) {
+    const auto& dev = pci::devices[i];
+    auto vendor_id = pci::ReadVendorId(dev.bus, dev.device, dev.function);
+    auto cc = dev.class_code;
+    printk("%d.%d.%d: vend %04x, class %02x%02x%02x, head %02x\n",
+        dev.bus, dev.device, dev.function,
+        vendor_id, cc.base, cc.sub, cc.interface, dev.header_type);
+  }
 
   while (1) __asm__("hlt");
 }
