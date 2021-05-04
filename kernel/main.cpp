@@ -137,6 +137,20 @@ void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
       superspeed_ports, ehci2xhci_ports);
 }
 
+usb::xhci::Controller* xhc;
+
+// xHCI用割り込みハンドラ
+__attribute__((interrupt))
+void IntHandlerXHCI(InterruptFrame* frame) {
+  while (xhc->PrimaryEventRing()->HasFront()) {
+    if (auto err = ProcessEvent(*xhc)) {
+      Log(kError, "Error while Process Event: %s at %s:%d\n",
+          err.Name(), err.File(), err.Line());
+    }
+  }
+  NotifyEndOfInterrupt();
+}
+
 char mouse_cursor_buf[sizeof(MouseCursor)];
 MouseCursor* mouse_cursor;
 
@@ -213,6 +227,21 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
         xhc_dev->bus, xhc_dev->device, xhc_dev->function);
   }
 
+  // xHCI用割り込みハンドラを登録
+  const uint16_t cs = GetCS();
+  SetIDTEntry(idt[InterruptVector::kXHCI], MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+      reinterpret_cast<uint64_t>(IntHandlerXHCI), cs);
+  LoadIDT(sizeof(idt) - 1, reinterpret_cast<uintptr_t>(&idt[0]));
+
+  /// Local APIC ID: CPUコア毎に固有の番号 割り込みがどのコアに通知されるかを指定するために取得
+  const uint8_t bsp_local_apic_id =
+    *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+  // MSI割り込みの有効化
+  pci::ConfigureMSIFixedDestination(
+      *xhc_dev, bsp_local_apic_id,
+      pci::MSITriggerMode::kLevel, pci::MSIDeliveryMode::kFixed,
+      InterruptVector::kXHCI, 0);
+
   // xHCを制御するレジスタのMMIOアドレスを読み出す
   // アドレスは BAR0 に書いてある
   const WithError<uint64_t> xhc_bar = pci::ReadBar(*xhc_dev, 0);
@@ -250,12 +279,12 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
   }
 
   // マウス動作時のイベント処理(ポーリング)
-  while (1) {
-    if (auto err = ProcessEvent(xhc)) {
-      Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
-          err.Name(), err.File(), err.Line());
-    }
-  }
+  // while (1) {
+  //   if (auto err = ProcessEvent(xhc)) {
+  //     Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
+  //         err.Name(), err.File(), err.Line());
+  //   }
+  // }
 
   while (1) __asm__("hlt");
 }
