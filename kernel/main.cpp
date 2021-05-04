@@ -58,10 +58,10 @@ const uint8_t AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
   0xff, 0xf0, 0x3f, 0xff, 0xff,
 };
 
-void WriteScaledPixel(PixelWriter& writer, int scale, int left_x, int top_y, int px, int py, const PixelColor& c) {
+void WriteScaledPixel(PixelWriter& writer, int scale, Vector2D<int> pos, Vector2D<int> pixel_at, const PixelColor& c) {
   for (int dx = 0; dx < scale; ++dx) {
     for (int dy = 0; dy < scale; ++dy) {
-      writer.Write(left_x + px*scale + dx, top_y + py*scale + dy, c);
+      writer.Write(pos.x + pixel_at.x*scale + dx, pos.y + pixel_at.y*scale + dy, c);
     }
   }
 }
@@ -85,8 +85,8 @@ const PixelColor* ColorFromColorNum2bit(uint8_t colNum) {
   }
 }
 
-uint8_t ColorNum2bitAt(const uint8_t* bmp_data, int x, int y) {
-  int i = x + y * AEGIS_WIDTH;
+uint8_t ColorNum2bitAt(const uint8_t* bmp_data, Vector2D<int> at) {
+  int i = at.x + at.y * AEGIS_WIDTH;
   int data_idx = i / 4;
   int px_idx = i % 4;
   return (bmp_data[data_idx] >> ((3 - px_idx) * 2)) & 0b11;
@@ -174,8 +174,8 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
 
   for (int px = 0; px < AEGIS_WIDTH; ++px) {
     for (int py = 0; py < AEGIS_HEIGHT; ++py) {
-      const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, px, py));
-      WriteScaledPixel(*pixel_writer, 4, 0, 400, px, py, *c);
+      const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, {px, py}));
+      WriteScaledPixel(*pixel_writer, 4, {0, 400}, {px, py}, *c);
     }
   }
   WriteString(*pixel_writer, 90, 520, "<- Aegis chan", BK);
