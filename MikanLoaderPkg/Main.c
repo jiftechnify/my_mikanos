@@ -211,6 +211,7 @@ EFI_STATUS EFIAPI UefiMain(
 
   Print(L"Hello, Mikan World!\n");
 
+  // メモリマップ取得
   CHAR8 memmap_buf[4096 * 4];
   struct MemoryMap memmap = {sizeof(memmap_buf), memmap_buf, 0, 0, 0, 0};
   status = GetMemoryMap(&memmap);
@@ -219,6 +220,7 @@ EFI_STATUS EFIAPI UefiMain(
     Halt();
   }
 
+  // ブートデバイスのルートディレクトリを開く
   EFI_FILE_PROTOCOL* root_dir;
   status = OpenRootDir(image_handle, &root_dir);
   if (EFI_ERROR(status)) {
@@ -226,6 +228,7 @@ EFI_STATUS EFIAPI UefiMain(
     Halt();
   }
 
+  // メモリマップをファイルに書き込む
   EFI_FILE_PROTOCOL* memmap_file;
   status =root_dir->Open(
       root_dir, &memmap_file, L"\\memmap",
@@ -246,6 +249,7 @@ EFI_STATUS EFIAPI UefiMain(
     }
   }
 
+  // グラフィック出力の準備
   EFI_GRAPHICS_OUTPUT_PROTOCOL* gop;
   status = OpenGOP(image_handle, &gop);
   if (EFI_ERROR(status)) {
@@ -262,6 +266,7 @@ EFI_STATUS EFIAPI UefiMain(
       gop->Mode->FrameBufferBase + gop->Mode->FrameBufferSize,
       gop->Mode->FrameBufferSize);
 
+  // カーネルELFを開き、ファイルサイズを確認
   EFI_FILE_PROTOCOL* kernel_file;
   status = root_dir->Open(
       root_dir, &kernel_file, L"\\kernel.elf",
@@ -284,6 +289,7 @@ EFI_STATUS EFIAPI UefiMain(
   EFI_FILE_INFO* file_info = (EFI_FILE_INFO*)file_info_buffer;
   UINTN kernel_file_size = file_info->FileSize;
 
+  // 一時領域にカーネルELFを読み込む
   VOID* kernel_buffer;
 
   status = gBS->AllocatePool(EfiLoaderData, kernel_file_size, &kernel_buffer);
@@ -298,6 +304,7 @@ EFI_STATUS EFIAPI UefiMain(
     Halt();
   }
 
+  // LOADセグメントが収まるだけのメモリ領域を確保
   Elf64_Ehdr* kernel_ehdr = (Elf64_Ehdr*)kernel_buffer;
   UINT64 kernel_first_addr, kernel_last_addr;
   CalcLoadAddressRange(kernel_ehdr, &kernel_first_addr, &kernel_last_addr);
@@ -311,16 +318,18 @@ EFI_STATUS EFIAPI UefiMain(
     Halt();
   }
 
+  // LOADセグメントをメモリにコピー
   CopyLoadSegments(kernel_ehdr);
   Print(L"Kernel: 0x%0lx - ox%0lx\n", kernel_first_addr, kernel_last_addr);
 
+  // カーネルELFを読み込むための一時領域を解放
   status = gBS->FreePool(kernel_buffer);
   if (EFI_ERROR(status)) {
     Print(L"failed to free pool: %r\n", status);
     Halt();
   }
 
-  // #@@range_begin(exit_bs)
+  // ブートサービスを終了し、カーネル起動準備
   status = gBS->ExitBootServices(image_handle, memmap.map_key);
   if (EFI_ERROR(status)) {
     status = GetMemoryMap(&memmap);
@@ -334,11 +343,8 @@ EFI_STATUS EFIAPI UefiMain(
       Halt();
     }
   }
-  // #@@range_end(exit_bs)
 
-  // #@@range_begin(call_kernel)
-  UINT64 entry_addr = *(UINT64*)(kernel_first_addr + 24);
-
+  // カーネルからフレームバッファに書き込む準備
   struct FrameBufferConfig config = {
     (UINT8*)gop->Mode->FrameBufferBase,
     gop->Mode->Info->PixelsPerScanLine,
@@ -358,10 +364,12 @@ EFI_STATUS EFIAPI UefiMain(
       Halt();
   }
 
+  // カーネル起動
+  UINT64 entry_addr = *(UINT64*)(kernel_first_addr + 24);
+
   typedef void EntryPointType(const struct FrameBufferConfig*);
   EntryPointType* entry_point = (EntryPointType*)entry_addr;
   entry_point(&config);
-  // #@@range_end(call_kernel)
 
   Print(L"All done\n");
 
