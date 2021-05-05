@@ -16,19 +16,17 @@ WithError<FrameID> BitmapMemoryManager::Allocate(size_t num_frames) {
         // "start_frame_id + i" にあるフレームは割当済み
         break;
       }
-
-      if (i == num_frames) {
-        // num_frames 分の空きが見つかった
-        MarkAllocated(FrameID{start_frame_id}, num_frames);
-        return {
-          FrameID{start_frame_id},
-          MAKE_ERROR(Error::kSuccess),
-        };
-      }
-
-      //  次のフレームから再検索
-      start_frame_id += i + 1;
     }
+    if (i == num_frames) {
+      // num_frames 分の空きが見つかった
+      MarkAllocated(FrameID{start_frame_id}, num_frames);
+      return {
+        FrameID{start_frame_id},
+        MAKE_ERROR(Error::kSuccess),
+      };
+    }
+    // 次のフレームから再検索
+    start_frame_id += i + 1;
   }
 }
 
@@ -67,3 +65,19 @@ void BitmapMemoryManager::SetBit(FrameID frame, bool allocated) {
     alloc_map_[line_index] &= ~(static_cast<MapLineType>(1) << bit_index);
   }
 }
+
+extern "C" caddr_t program_break, program_break_end;
+
+Error InitializeHeap(BitmapMemoryManager& memory_manager) {
+  const int kHeapFrames = 64 * 512;
+  const auto heap_start = memory_manager.Allocate(kHeapFrames);
+  if (heap_start.error) {
+    return heap_start.error;
+  }
+
+  program_break = reinterpret_cast<caddr_t>(heap_start.value.ID() * kBytesPerFrame);
+  program_break_end = program_break + kHeapFrames * kBytesPerFrame;
+  return MAKE_ERROR(Error::kSuccess);
+}
+
+
