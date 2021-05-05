@@ -10,6 +10,7 @@
 #include  <Protocol/BlockIo.h>
 #include  <Guid/FileInfo.h>
 #include  "frame_buffer_config.hpp"
+#include  "memory_map.hpp"
 #include  "elf.hpp"
 
 struct MemoryMap {
@@ -367,9 +368,9 @@ EFI_STATUS EFIAPI UefiMain(
   // カーネル起動
   UINT64 entry_addr = *(UINT64*)(kernel_first_addr + 24);
 
-  typedef void EntryPointType(const struct FrameBufferConfig*);
+  typedef void EntryPointType(const struct FrameBufferConfig*, const struct MemoryMap*);
   EntryPointType* entry_point = (EntryPointType*)entry_addr;
-  entry_point(&config);
+  entry_point(&config, &memmap);
 
   Print(L"All done\n");
 

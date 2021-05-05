@@ -3,17 +3,7 @@
 #include <array>
 #include <cstdint>
 
-// 割り込み記述子の種別
-// 通常の割り込みハンドラの場合は kInterruptGate(14) を設定
-enum class DescriptorType {
-  kUpper8Bytes   = 0,
-  kLDT           = 2,
-  kTSSAvailable  = 9,
-  kTSSBusy       = 11,
-  kCallGate      = 12,
-  kInterruptGate = 14,
-  kTrapGate      = 15,
-};
+#include "x86_descriptor.hpp"
 
 // __attribute__(packed) は構造体のフィールドの間にパディングを入れないようにする指定
 union InterruptDescriptorAttribute {

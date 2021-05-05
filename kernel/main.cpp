@@ -11,6 +11,10 @@
 #include "asmfunc.h"
 #include "interrupt.hpp"
 #include "queue.hpp"
+#include "memory_map.hpp"
+#include "segment.hpp"
+#include "paging.hpp"
+#include "memory_manager.hpp"
 #include "usb/memory.hpp"
 #include "usb/device.hpp"
 #include "usb/classdriver/mouse.hpp"
@@ -164,7 +168,17 @@ void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
   mouse_cursor->MoveRelative({displacement_x, displacement_y});
 }
 
-extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
+// カーネルが利用するスタック領域を準備
+alignas(16) uint8_t kernel_main_stack[1024 * 1024];
+
+// メモリマネージャ
+char memory_manager_buf[sizeof(BitmapMemoryManager)];
+BitmapMemoryManager* memory_manager;
+
+extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref) {
+  FrameBufferConfig frame_buffer_config{frame_buffer_config_ref};
+  MemoryMap memory_map{memory_map_ref};
+
   switch (frame_buffer_config.pixel_format) {
     case kPixelRGBResv8BitPerColor:
       pixel_writer = new(pixel_writer_buf)
@@ -187,6 +201,47 @@ extern "C" void KernelMain(const FrameBufferConfig& frame_buffer_config) {
 
   printk("Welcome to Mikan OS!\n");
   SetLogLevel(kWarn);
+
+  // セグメンテーションの設定
+  SetupSegments();
+
+  const uint16_t kernel_cs = 1 << 3;
+  const uint16_t kernel_ss = 2 << 3;
+  SetDSAll(0);
+  SetCSSS(kernel_cs, kernel_ss);
+
+  // ページングの設定(とりあえずアイデンティティマッピング)
+  SetupIdentityPageTable();
+  printk("paging\n");
+  // メモリマネージャに利用可能なメモリ領域の情報を伝える
+  ::memory_manager = new(memory_manager_buf) BitmapMemoryManager;
+
+  const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map.buffer);
+  uintptr_t available_end = 0;
+  for (uintptr_t iter = memory_map_base;
+       iter < memory_map_base + memory_map.map_size;
+       iter += memory_map.descriptor_size) {
+    auto desc = reinterpret_cast<const MemoryDescriptor*>(iter);
+
+    // メモリマップ上にない領域は使用済みとマーク
+    if (available_end < desc->physical_start) {
+      memory_manager->MarkAllocated(
+          FrameID{available_end / kBytesPerFrame},
+          (desc->physical_start - available_end) / kBytesPerFrame);
+    }
+
+    const auto physical_end =
+      desc->physical_start + desc->number_of_pages * kUEFIPageSize;
+    if (IsAvailable(static_cast<MemoryType>(desc->type))) {
+      available_end = physical_end;
+    } else {
+      // カーネルで利用できない領域は使用済みとマーク
+      memory_manager->MarkAllocated(
+          FrameID{desc->physical_start / kBytesPerFrame},
+          desc->number_of_pages * kUEFIPageSize / kBytesPerFrame);
+    }   
+  }
+  memory_manager->SetMemoryRange(FrameID{1}, FrameID{available_end / kBytesPerFrame});
 
   mouse_cursor = new(mouse_cursor_buf) MouseCursor{
     pixel_writer, kDesktopBGColor, {300, 200}
