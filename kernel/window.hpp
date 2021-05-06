@@ -46,7 +46,10 @@ class Window {
 
     // 指定した位置に指定した色を描画
     void Write(Vector2D<int> pos, PixelColor c);
-
+    
+    // dst_pos に src の領域内の画像を移動させる
+    void Move(Vector2D<int> dst_pos, const Rectangle<int>& src);
+    
     // ウィンドウの幅・高さを取得
     int Width() const;
     int Height() const;
