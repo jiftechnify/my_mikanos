@@ -14,90 +14,93 @@
 #include "memory_map.hpp"
 #include "segment.hpp"
 #include "paging.hpp"
+#include "layer.hpp"
+#include "window.hpp"
 #include "memory_manager.hpp"
+#include "timer.hpp"
 #include "usb/memory.hpp"
 #include "usb/device.hpp"
 #include "usb/classdriver/mouse.hpp"
 #include "usb/xhci/xhci.hpp"
 #include "usb/xhci/trb.hpp"
 
-const PixelColor BK{0, 0, 0};
-const PixelColor DG{102, 102, 102};
-const PixelColor LG{187, 187, 187};
-const PixelColor WH{255, 255, 255};
-const int AEGIS_WIDTH = 20;
-const int AEGIS_HEIGHT = 34;
-const int AEGIS_BMP_DATA_SIZE = (AEGIS_WIDTH * AEGIS_HEIGHT + 3) / 4;
-const uint8_t AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
-  0xff, 0xfc, 0x00, 0x3f, 0xff,
-  0xff, 0xc1, 0x55, 0x43, 0xff,
-  0xff, 0x16, 0xaa, 0x94, 0xff,
-  0xfc, 0x6a, 0xaa, 0xa9, 0x3f,
-  0xf1, 0xaa, 0xaa, 0xaa, 0x4f,
-  0xf1, 0xaa, 0xaa, 0xaa, 0x4f,
-  0xc6, 0xbe, 0xaa, 0xaa, 0x93,
-  0xc6, 0x80, 0xeb, 0x02, 0x93,
-  0x16, 0x30, 0xfb, 0x0c, 0x94,
-  0x16, 0xfc, 0xff, 0xcf, 0x94,
-  0x16, 0xf0, 0xff, 0x0f, 0x94,
-  0xc6, 0xff, 0xcf, 0xff, 0x93,
-  0xf2, 0x3f, 0xff, 0xfc, 0x8f,
-  0xfc, 0x8f, 0xc3, 0xf2, 0x3f,
-  0xff, 0x00, 0x3c, 0x00, 0xff,
-  0xff, 0x30, 0x00, 0x03, 0xff,
-  0xff, 0xc0, 0x00, 0x3c, 0xff,
-  0xff, 0xfc, 0x00, 0x0f, 0x0f,
-  0xff, 0xfc, 0x00, 0x33, 0xf3,
-  0xff, 0xf0, 0x00, 0x0c, 0xf3,
-  0xff, 0xc0, 0x00, 0x03, 0x0f,
-  0xff, 0x00, 0x00, 0x00, 0xff,
-  0xfc, 0x00, 0x00, 0x00, 0x3f,
-  0xf3, 0x00, 0x00, 0x00, 0xcf,
-  0xfc, 0xf0, 0x00, 0x0f, 0x3f,
-  0xff, 0x0f, 0xff, 0xf0, 0xff,
-  0xff, 0xf0, 0x00, 0x0f, 0xff,
-  0xff, 0xf3, 0xc7, 0xcf, 0xff,
-  0xff, 0xf1, 0x45, 0xcf, 0xff,
-  0xff, 0xf1, 0x41, 0x4f, 0xff,
-  0xff, 0xf1, 0x4c, 0x3f, 0xff,
-  0xff, 0xc5, 0x4f, 0xff, 0xff,
-  0xff, 0xcf, 0xcf, 0xff, 0xff,
-  0xff, 0xf0, 0x3f, 0xff, 0xff,
-};
-
-void WriteScaledPixel(PixelWriter& writer, int scale, Vector2D<int> pos, Vector2D<int> pixel_at, const PixelColor& c) {
-  for (int dx = 0; dx < scale; ++dx) {
-    for (int dy = 0; dy < scale; ++dy) {
-      writer.Write(pos.x + pixel_at.x*scale + dx, pos.y + pixel_at.y*scale + dy, c);
-    }
-  }
-}
-
-const PixelColor* ColorFromColorNum2bit(uint8_t colNum) {
-  switch (colNum) {
-    case 0b00:
-      return &BK;
-      break;
-    case 0b01:
-      return &DG;
-      break;
-    case 0b10:
-      return &LG;
-      break;
-    case 0b11:
-      return &WH;
-      break;
-    default:
-      return &BK;
-  }
-}
-
-uint8_t ColorNum2bitAt(const uint8_t* bmp_data, Vector2D<int> at) {
-  int i = at.x + at.y * AEGIS_WIDTH;
-  int data_idx = i / 4;
-  int px_idx = i % 4;
-  return (bmp_data[data_idx] >> ((3 - px_idx) * 2)) & 0b11;
-}
+// const PixelColor BK{0, 0, 0};
+// const PixelColor DG{102, 102, 102};
+// const PixelColor LG{187, 187, 187};
+// const PixelColor WH{255, 255, 255};
+// const int AEGIS_WIDTH = 20;
+// const int AEGIS_HEIGHT = 34;
+// const int AEGIS_BMP_DATA_SIZE = (AEGIS_WIDTH * AEGIS_HEIGHT + 3) / 4;
+// const uint8_t AEGIS_BMP_DATA[AEGIS_BMP_DATA_SIZE] = {
+//   0xff, 0xfc, 0x00, 0x3f, 0xff,
+//   0xff, 0xc1, 0x55, 0x43, 0xff,
+//   0xff, 0x16, 0xaa, 0x94, 0xff,
+//   0xfc, 0x6a, 0xaa, 0xa9, 0x3f,
+//   0xf1, 0xaa, 0xaa, 0xaa, 0x4f,
+//   0xf1, 0xaa, 0xaa, 0xaa, 0x4f,
+//   0xc6, 0xbe, 0xaa, 0xaa, 0x93,
+//   0xc6, 0x80, 0xeb, 0x02, 0x93,
+//   0x16, 0x30, 0xfb, 0x0c, 0x94,
+//   0x16, 0xfc, 0xff, 0xcf, 0x94,
+//   0x16, 0xf0, 0xff, 0x0f, 0x94,
+//   0xc6, 0xff, 0xcf, 0xff, 0x93,
+//   0xf2, 0x3f, 0xff, 0xfc, 0x8f,
+//   0xfc, 0x8f, 0xc3, 0xf2, 0x3f,
+//   0xff, 0x00, 0x3c, 0x00, 0xff,
+//   0xff, 0x30, 0x00, 0x03, 0xff,
+//   0xff, 0xc0, 0x00, 0x3c, 0xff,
+//   0xff, 0xfc, 0x00, 0x0f, 0x0f,
+//   0xff, 0xfc, 0x00, 0x33, 0xf3,
+//   0xff, 0xf0, 0x00, 0x0c, 0xf3,
+//   0xff, 0xc0, 0x00, 0x03, 0x0f,
+//   0xff, 0x00, 0x00, 0x00, 0xff,
+//   0xfc, 0x00, 0x00, 0x00, 0x3f,
+//   0xf3, 0x00, 0x00, 0x00, 0xcf,
+//   0xfc, 0xf0, 0x00, 0x0f, 0x3f,
+//   0xff, 0x0f, 0xff, 0xf0, 0xff,
+//   0xff, 0xf0, 0x00, 0x0f, 0xff,
+//   0xff, 0xf3, 0xc7, 0xcf, 0xff,
+//   0xff, 0xf1, 0x45, 0xcf, 0xff,
+//   0xff, 0xf1, 0x41, 0x4f, 0xff,
+//   0xff, 0xf1, 0x4c, 0x3f, 0xff,
+//   0xff, 0xc5, 0x4f, 0xff, 0xff,
+//   0xff, 0xcf, 0xcf, 0xff, 0xff,
+//   0xff, 0xf0, 0x3f, 0xff, 0xff,
+// };
+// 
+// void WriteScaledPixel(PixelWriter& writer, int scale, Vector2D<int> pos, Vector2D<int> pixel_at, const PixelColor& c) {
+//   for (int dx = 0; dx < scale; ++dx) {
+//     for (int dy = 0; dy < scale; ++dy) {
+//       writer.Write(pos.x + pixel_at.x*scale + dx, pos.y + pixel_at.y*scale + dy, c);
+//     }
+//   }
+// }
+// 
+// const PixelColor* ColorFromColorNum2bit(uint8_t colNum) {
+//   switch (colNum) {
+//     case 0b00:
+//       return &BK;
+//       break;
+//     case 0b01:
+//       return &DG;
+//       break;
+//     case 0b10:
+//       return &LG;
+//       break;
+//     case 0b11:
+//       return &WH;
+//       break;
+//     default:
+//       return &BK;
+//   }
+// }
+// 
+// uint8_t ColorNum2bitAt(const uint8_t* bmp_data, Vector2D<int> at) {
+//   int i = at.x + at.y * AEGIS_WIDTH;
+//   int data_idx = i / 4;
+//   int px_idx = i % 4;
+//   return (bmp_data[data_idx] >> ((3 - px_idx) * 2)) & 0b11;
+// }
 
 
 char pixel_writer_buf[sizeof(RGBResv8BitPerColorPixelWriter)];
@@ -118,9 +121,6 @@ int printk(const char* format, ...) {
   console->PutString(s);
   return result;
 }
-
-const PixelColor kDesktopBGColor{45, 118, 237};
-const PixelColor kDesktopFGColor{255, 255, 255};
 
 // Intel製のUSB HCIのモードをEHCIモード(USB2.0)からxHCIモード(USB3.x)に切り替え
 void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
@@ -161,11 +161,15 @@ void IntHandlerXHCI(InterruptFrame* frame) {
   NotifyEndOfInterrupt();
 }
 
-char mouse_cursor_buf[sizeof(MouseCursor)];
-MouseCursor* mouse_cursor;
+unsigned int mouse_layer_id;
 
 void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
-  mouse_cursor->MoveRelative({displacement_x, displacement_y});
+  layer_manager->MoveRelative(mouse_layer_id, {displacement_x, displacement_y});
+  StartLAPICTimer();
+  layer_manager->Draw();
+  auto elapsed = LAPICTimerElapsed();
+  StopLAPICTimer();
+  printk("MouseObserver: elapsed: %u\n", elapsed);
 }
 
 // カーネルが利用するスタック領域を準備
@@ -189,18 +193,17 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
         BGRResv8BitPerColorPixelWriter{frame_buffer_config};
       break;
   }
-  console = new(console_buf) Console{*pixel_writer, kDesktopFGColor, kDesktopBGColor};
+  
+  // レイヤマネージャが用意できるまでの臨時コンソール
+  console->SetWriter(pixel_writer);
+  DrawDesktop(*pixel_writer);
 
-  const int kFrameWidth = frame_buffer_config.horizontal_resolution;
-  const int kFrameHeight = frame_buffer_config.vertical_resolution;
-
-  FillRectangle(*pixel_writer, {0, 0}, {kFrameWidth, kFrameHeight - 50}, kDesktopBGColor);
-  FillRectangle(*pixel_writer, {0, kFrameHeight - 50}, {kFrameWidth, 50}, {1, 8, 17});
-  FillRectangle(*pixel_writer, {0, kFrameHeight - 50}, {kFrameWidth / 5, 50}, {80, 80, 80});
-  DrawRectangle(*pixel_writer, {10, kFrameHeight - 40}, {30, 30}, {160, 160, 160});
-
+  console = new(console_buf) Console{kDesktopFGColor, kDesktopBGColor};
+  console->SetWriter(pixel_writer);
   printk("Welcome to Mikan OS!\n");
   SetLogLevel(kWarn);
+
+  InitializeLAPICTimer();
 
   // セグメンテーションの設定
   SetupSegments();
@@ -212,7 +215,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   // ページングの設定(とりあえずアイデンティティマッピング)
   SetupIdentityPageTable();
-  printk("paging\n");
+
   // メモリマネージャに利用可能なメモリ領域の情報を伝える
   ::memory_manager = new(memory_manager_buf) BitmapMemoryManager;
 
@@ -250,21 +253,17 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     exit(1);
   }
 
-  mouse_cursor = new(mouse_cursor_buf) MouseCursor{
-    pixel_writer, kDesktopBGColor, {300, 200}
-  };
-
   std::array<Message, 32> main_queue_data;
   ArrayQueue<Message> main_queue{main_queue_data};
   ::main_queue = &main_queue;
 
-  for (int px = 0; px < AEGIS_WIDTH; ++px) {
-    for (int py = 0; py < AEGIS_HEIGHT; ++py) {
-      const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, {px, py}));
-      WriteScaledPixel(*pixel_writer, 4, {0, 400}, {px, py}, *c);
-    }
-  }
-  WriteString(*pixel_writer, 90, 520, "<- Aegis chan", BK);
+  // for (int px = 0; px < AEGIS_WIDTH; ++px) {
+  //   for (int py = 0; py < AEGIS_HEIGHT; ++py) {
+  //     const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, {px, py}));
+  //     WriteScaledPixel(*pixel_writer, 4, {0, 400}, {px, py}, *c);
+  //   }
+  // }
+  // WriteString(*pixel_writer, 90, 520, "<- Aegis chan", BK);
 
   auto err = pci::ScanAllBus();
   printk("ScanAllBus: %s\n", err.Name());
@@ -349,6 +348,38 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       }
     }
   }
+
+  // レイヤマネージャ初期化
+  // 背景とマウスカーソルの2レイヤからなる画面を描画
+  const int kFrameWidth = frame_buffer_config.horizontal_resolution;
+  const int kFrameHeight = frame_buffer_config.vertical_resolution;
+
+  auto bgwindow = std::make_shared<Window>(kFrameWidth, kFrameHeight);
+  auto bgwriter = bgwindow->Writer();
+
+  DrawDesktop(*bgwriter);
+  console->SetWriter(bgwriter);
+
+  auto mouse_window = std::make_shared<Window>(kMouseCursorWidth, kMouseCursorHeight);
+  mouse_window->SetTransparentColor(kMouseTransparentColor);
+  DrawMouseCursor(mouse_window->Writer(), {0, 0});
+
+  layer_manager = new LayerManager;
+  layer_manager->SetWriter(pixel_writer);
+
+  auto bglayer_id = layer_manager->NewLayer()
+    .SetWindow(bgwindow)
+    .Move({0, 0})
+    .ID();
+
+  mouse_layer_id = layer_manager->NewLayer()
+    .SetWindow(mouse_window)
+    .Move({200, 200})
+    .ID();
+
+  layer_manager->UpDown(bglayer_id, 0);
+  layer_manager->UpDown(mouse_layer_id, 1);
+  layer_manager->Draw();
 
   // 割り込みハンドラからのメッセージを処理するイベントループ
   while (true) {
