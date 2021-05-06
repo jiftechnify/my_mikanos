@@ -31,8 +31,8 @@ class Layer {
     Layer& MoveRelative(Vector2D<int> pos_diff);
 
 
-    // 指定された PixelWriter に、このレイヤに設定されているウィンドウを描画
-    void DrawTo(PixelWriter& writer) const;
+    // 指定された FrmaeBuffer に、このレイヤに設定されているウィンドウを描画
+    void DrawTo(FrameBuffer& screen) const;
 
   private:
     unsigned int id_;
@@ -43,8 +43,8 @@ class Layer {
 /* 重なり合う複数のレイヤを管理するクラス */
 class LayerManager {
   public:
-    // 描画先の PixelWriter を設定
-    void SetWriter(PixelWriter* writer);
+    // 描画先の FrameBuffer を設定
+    void SetWriter(FrameBuffer* screen);
 
     // 新しいレイヤを生成し、参照を返す
     Layer& NewLayer();
@@ -69,7 +69,7 @@ class LayerManager {
     void Hide(unsigned int id);
 
   private:
-    PixelWriter* writer_{nullptr};
+    FrameBuffer* screen_{nullptr};
     std::vector<std::unique_ptr<Layer>> layers_{};  // レイヤを管理する配列。レイヤオブジェクトの「所有者」になる
     std::vector<Layer*> layer_stack_{};             // レイヤの重なり(奥行き方向の位置関係)を表現する
     unsigned int latest_id_{0};

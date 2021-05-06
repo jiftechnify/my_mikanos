@@ -3,6 +3,7 @@
 #include <vector>
 #include <optional>
 #include "graphics.hpp"
+#include "frame_buffer.hpp"
 
 /* 画面上の(Layer上の)矩形領域 */
 class Window {
@@ -12,8 +13,8 @@ class Window {
       public:
         WindowWriter(Window& window) : window_{window} {}
 
-        virtual void Write(int x, int y, const PixelColor& c) override {
-          window_.At(x, y) = c;
+        virtual void Write(Vector2D<int> pos, const PixelColor& c) override {
+          window_.Write(pos, c);
         }
 
         virtual int Width() const override { return window_.Width(); }
@@ -24,14 +25,14 @@ class Window {
     };
 
     // 指定した大きさのウィンドウを生成
-    Window(int width, int height);
+    Window(int width, int height, PixelFormat shadow_format);
 
     ~Window() = default;
     Window(const Window& rhs) = delete;
     Window& operator=(const Window& rhs) = delete;
 
-    // 与えられた PixelWriter に、このウィンドウの表示領域を描画する
-    void DrawTo(PixelWriter& writer, Vector2D<int> position);
+    // 与えられた FrameBuffer に、このウィンドウの表示領域を描画する
+    void DrawTo(FrameBuffer& dst, Vector2D<int> position);
 
     // 透過色を設定
     void SetTransparentColor(std::optional<PixelColor> c);
@@ -41,8 +42,10 @@ class Window {
 
 
     // 指定位置のピクセルの色を返す
-    PixelColor& At(int x, int y);
-    const PixelColor& At(int x, int y) const;
+    const PixelColor& At(Vector2D<int> pos) const;
+
+    // 指定した位置に指定した色を描画
+    void Write(Vector2D<int> pos, PixelColor c);
 
     // ウィンドウの幅・高さを取得
     int Width() const;
@@ -53,5 +56,7 @@ class Window {
     std::vector<std::vector<PixelColor>> data_{};
     WindowWriter writer_{*this};
     std::optional<PixelColor> transparent_color_{std::nullopt};
+
+    FrameBuffer shadow_buffer_{};
 };
 
