@@ -69,7 +69,7 @@ Error FrameBuffer::Copy(Vector2D<int> dst_pos, const FrameBuffer& src) {
   }
 
   const auto dst_size = FrameBufferSize(config_);
-  const auto src_size = FrameBufferSize(config_);
+  const auto src_size = FrameBufferSize(src.config_);
 
   // dstからはみ出る部分を落とす
   const Vector2D<int> dst_start = ElementMax(dst_pos, {0, 0});
