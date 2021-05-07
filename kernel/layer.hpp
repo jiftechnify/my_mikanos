@@ -78,6 +78,7 @@ class LayerManager {
 
   private:
     FrameBuffer* screen_{nullptr};
+    mutable FrameBuffer back_buffer_{}; // 実際にフレームバッファに描画する前に仮描画するためのバッファ
     std::vector<std::unique_ptr<Layer>> layers_{};  // レイヤを管理する配列。レイヤオブジェクトの「所有者」になる
     std::vector<Layer*> layer_stack_{};             // レイヤの重なり(奥行き方向の位置関係)を表現する
     unsigned int latest_id_{0};

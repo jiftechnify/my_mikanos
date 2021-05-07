@@ -44,6 +44,11 @@ void Layer::DrawTo(FrameBuffer& screen, const Rectangle<int>& area) const {
 
 void LayerManager::SetWriter(FrameBuffer* screen) {
   screen_ = screen;
+
+  // スクリーンのフレームバッファと同じ形式でバックバッファを初期化
+  FrameBufferConfig back_config = screen->Config();
+  back_config.frame_buffer = nullptr;
+  back_buffer_.Initialize(back_config);
 }
 
 Layer& LayerManager::NewLayer() {
@@ -81,16 +86,19 @@ void LayerManager::MoveRelative(unsigned int id, Vector2D<int> pos_diff) {
 }
 
 void LayerManager::Draw() const {
-  // layer_stack_ には、最背面 -> 最前面 の順でレイヤーが並んでいる
-  for (auto layer: layer_stack_) {
-    layer->DrawTo(*screen_);
-  }
+  Rectangle<int> screen_area;
+  screen_area.pos = {0, 0};
+  screen_area.size = {screen_->Writer().Width(), screen_->Writer().Height()};
+
+  Draw(screen_area);
 }
 
 void LayerManager::Draw(const Rectangle<int>& area) const {
+  // layer_stack_ には、最背面 -> 最前面 の順でレイヤーが並んでいる
   for (auto layer: layer_stack_) {
-    layer->DrawTo(*screen_, area);
+    layer->DrawTo(back_buffer_, area);
   }
+  screen_->Copy(area.pos, back_buffer_, area);
 }
 
 void LayerManager::Draw(unsigned int id) const {
@@ -103,9 +111,10 @@ void LayerManager::Draw(unsigned int id) const {
       draw = true;
     }
     if (draw) {
-      layer->DrawTo(*screen_, window_area);
+      layer->DrawTo(back_buffer_, window_area);
     }
   }
+  screen_->Copy(window_area.pos, back_buffer_, window_area);
 }
 
 void LayerManager::Hide(unsigned int id) {
