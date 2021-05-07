@@ -3,13 +3,6 @@
 #include "graphics.hpp"
 #include <cstdint>
 
-enum class Grayscale4GradsColor: uint8_t {
-  Black,
-  DarkGray,
-  LightGray,
-  White,
-};
-
 struct Grayscale4GradsImage {
   int width, height;
   const uint8_t* bmp_data;
@@ -64,5 +57,6 @@ namespace {
 
 const Grayscale4GradsImage GrayscaleAegis{aegis_width, aegis_height, grayscale_aegis_bmp_data};
 
-void Grayscale4GradsImage(PixelWriter& writer, Vector2D<int> pos, const Grayscale4GradsImage& img);
+void DrawGrayscale4GradsImage(PixelWriter& writer, Vector2D<int> pos, const Grayscale4GradsImage& img);
+void DrawGrayscale4GradsImageScaled(PixelWriter& writer, Vector2D<int> pos, int scale, const Grayscale4GradsImage& img);
 
