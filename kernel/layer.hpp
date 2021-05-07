@@ -38,10 +38,18 @@ class Layer {
     
     void DrawTo(FrameBuffer& screen, const Rectangle<int>& area) const;
 
+  
+    // ドラッグ可能フラグを設定
+    Layer& SetDraggable(bool draggable); 
+
+    // ドラッグ可能かどうか
+    bool IsDraggable() const;
+
   private:
     unsigned int id_;
     Vector2D<int> pos_;
     std::shared_ptr<Window> window_;
+    bool draggable_{false};
 };
 
 /* 重なり合う複数のレイヤを管理するクラス */
@@ -75,6 +83,9 @@ class LayerManager {
 
     // レイヤを非表示にする
     void Hide(unsigned int id);
+
+    // 指定位置にある最前面のレイヤーを取得
+    Layer* FindLayerByPosition(Vector2D<int> pos, unsigned int exclude_id) const;
 
   private:
     FrameBuffer* screen_{nullptr};

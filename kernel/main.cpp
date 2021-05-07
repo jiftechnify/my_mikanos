@@ -18,6 +18,7 @@
 #include "window.hpp"
 #include "memory_manager.hpp"
 #include "timer.hpp"
+#include "grayscale_image.hpp"
 #include "usb/memory.hpp"
 #include "usb/device.hpp"
 #include "usb/classdriver/mouse.hpp"
@@ -165,12 +166,38 @@ unsigned int mouse_layer_id;
 Vector2D<int> screen_size;
 Vector2D<int> mouse_position;
 
-void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
+void MouseObserver(uint8_t buttons, int8_t displacement_x, int8_t displacement_y) {
+  static unsigned int mouse_drag_layer_id = 0;
+  static uint8_t prev_buttons = 0;
+
+  const auto oldpos = mouse_position;
   auto newpos = mouse_position + Vector2D<int>{displacement_x, displacement_y};
   newpos = ElementMin(newpos, screen_size + Vector2D<int>{-1, -1});
   mouse_position = ElementMax(newpos, Vector2D<int>{0, 0});
 
+  const auto posdiff = mouse_position - oldpos;
+
   layer_manager->Move(mouse_layer_id, mouse_position);
+
+  // ドラッグを検出し、ドラッグ開始時にマウスポインタの下にあったレイヤーをドラッグに伴って移動させる
+  const bool prev_left_pressed = (prev_buttons & 0x01);
+  const bool left_pressed = (buttons & 0x01);
+  if (!prev_left_pressed && left_pressed) {
+    // ドラッグ開始
+    auto layer = layer_manager->FindLayerByPosition(mouse_position, mouse_layer_id);
+    if (layer && layer->IsDraggable()) {
+      mouse_drag_layer_id = layer->ID();
+    }
+  } else if (prev_left_pressed && left_pressed) {
+    // ドラッグ中
+    if (mouse_drag_layer_id > 0) {
+      layer_manager->MoveRelative(mouse_drag_layer_id, posdiff);
+    }
+  } else if (prev_left_pressed && !left_pressed) {
+    // ドラッグ終了
+    mouse_drag_layer_id = 0;
+  }
+  prev_buttons = buttons;
 }
 
 // カーネルが利用するスタック領域を準備
@@ -257,14 +284,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   std::array<Message, 32> main_queue_data;
   ArrayQueue<Message> main_queue{main_queue_data};
   ::main_queue = &main_queue;
-
-  // for (int px = 0; px < AEGIS_WIDTH; ++px) {
-  //   for (int py = 0; py < AEGIS_HEIGHT; ++py) {
-  //     const PixelColor* c = ColorFromColorNum2bit(ColorNum2bitAt(AEGIS_BMP_DATA, {px, py}));
-  //     WriteScaledPixel(*pixel_writer, 4, {0, 400}, {px, py}, *c);
-  //   }
-  // }
-  // WriteString(*pixel_writer, 90, 520, "<- Aegis chan", BK);
 
   // xHCを探す
   pci::ScanAllBus();
@@ -357,6 +376,11 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   auto console_window = std::make_shared<Window>(Console::kColumns * 8, Console::kRows * 16, frame_buffer_config.pixel_format);
   console->SetWindow(console_window);
 
+  auto aegis_window = std::make_shared<Window>(24, 58, frame_buffer_config.pixel_format);
+  DrawWindow(*aegis_window->Writer(), "");
+  WriteGrayscale4GradsImage(*aegis_window->Writer(), {2, 22}, GrayscaleAegis);
+  
+
   FrameBuffer screen;
   if (auto err = screen.Initialize(frame_buffer_config)) {
     Log(kError, "failed to intialize frame buffer: %s at %s:%d\n",
@@ -378,6 +402,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   auto main_window_layer_id = layer_manager->NewLayer()
     .SetWindow(main_window)
+    .SetDraggable(true)
     .Move({300, 100})
     .ID();
 
@@ -386,10 +411,17 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     .Move({0, 0})
     .ID());
 
+  auto aegis_window_layer_id = layer_manager->NewLayer()
+    .SetWindow(aegis_window)
+    .SetDraggable(true)
+    .Move({250, 200})
+    .ID();
+
   layer_manager->UpDown(bglayer_id, 0);
   layer_manager->UpDown(console->LayerID(), 1);
   layer_manager->UpDown(main_window_layer_id, 2);
-  layer_manager->UpDown(mouse_layer_id, 3);
+  layer_manager->UpDown(aegis_window_layer_id, 3);
+  layer_manager->UpDown(mouse_layer_id, 4);
   layer_manager->Draw();
 
   char str[128];
