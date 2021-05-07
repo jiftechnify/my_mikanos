@@ -23,6 +23,8 @@ class Layer {
     // 設定されたウィンドウを返す
     std::shared_ptr<Window> GetWindow() const;
 
+    // レイヤーの座標
+    Vector2D<int> GetPosition() const;
     
     // レイヤの原点を指定された座標に移動する
     Layer& Move(Vector2D<int> pos);
@@ -33,6 +35,8 @@ class Layer {
 
     // 指定された FrmaeBuffer に、このレイヤに設定されているウィンドウを描画
     void DrawTo(FrameBuffer& screen) const;
+    
+    void DrawTo(FrameBuffer& screen, const Rectangle<int>& area) const;
 
   private:
     unsigned int id_;
@@ -50,12 +54,16 @@ class LayerManager {
     Layer& NewLayer();
 
 
-    // 表示状態にあるレイヤを描画
+    // 表示状態にあるレイヤを再描画
     void Draw() const;
+    // 指定領域を再描画
+    void Draw(const Rectangle<int>& area) const;
+    // 指定したレイヤーとそれより前面にあるレイヤーのみ再描画
+    void Draw(unsigned int id) const;
 
 
     // 指定したレイヤを指定座標に移動
-    void Move(unsigned int id, Vector2D<int> new_position);
+    void Move(unsigned int id, Vector2D<int> new_pos);
 
     // 指定したレイヤを指定方向に移動
     void MoveRelative(unsigned int id, Vector2D<int> pos_diff);

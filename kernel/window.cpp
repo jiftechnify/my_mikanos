@@ -23,21 +23,28 @@ Window::Window(int width, int height, PixelFormat shadow_format) : width_{width}
   }
 }
 
-void Window::DrawTo(FrameBuffer& dst, Vector2D<int> position) {
-  // 透過色が設定されていない場合
+void Window::DrawTo(FrameBuffer& dst, Vector2D<int> pos) {
+  Rectangle<int> window_area{pos, Size()};
+  DrawTo(dst, pos, window_area);
+}
+
+void Window::DrawTo(FrameBuffer& dst, Vector2D<int> pos, const Rectangle<int>& area) {
+  // 透過色が設定されていない場合は、指定範囲のうちこのウィンドウと重なる部分のデータをコピー
   if (!transparent_color_) {
-    dst.Copy(position, shadow_buffer_);
+    Rectangle<int> window_area{pos, Size()};
+    Rectangle<int> intersection = area & window_area;
+    dst.Copy(intersection.pos, shadow_buffer_, {intersection.pos - pos, intersection.size});
     return;
   }
 
-  // 透過色が設定されている場合、透過色の部分は描画しない(透過)
+  // 透過色が設定されている場合
   const auto tc = transparent_color_.value();
   auto& writer = dst.Writer();
-  for (int y = std::max(0, 0 - position.y); y < std::min(Height(), writer.Height() - position.y); ++y) {
-    for (int x = std::max(0, 0 - position.x); x < std::min(Width(), writer.Width() - position.x); ++x) {
+  for (int y = std::max(0, 0 - pos.y); y < std::min(Height(), writer.Height() - pos.y); ++y) {
+    for (int x = std::max(0, 0 - pos.x); x < std::min(Width(), writer.Width() - pos.x); ++x) {
       const auto c = At(Vector2D<int>{x, y});
       if (c != tc) {
-        writer.Write(position + Vector2D<int>{x, y}, c);
+        writer.Write(pos + Vector2D<int>{x, y}, c);
       }
     }
   }
@@ -70,6 +77,10 @@ int Window::Width() const {
 
 int Window::Height() const {
   return height_;
+}
+
+Vector2D<int> Window::Size() const {
+  return {width_, height_};
 }
 
 namespace {

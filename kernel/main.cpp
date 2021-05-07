@@ -171,7 +171,6 @@ void MouseObserver(int8_t displacement_x, int8_t displacement_y) {
   mouse_position = ElementMax(newpos, Vector2D<int>{0, 0});
 
   layer_manager->Move(mouse_layer_id, mouse_position);
-  layer_manager->Draw();
 }
 
 // カーネルが利用するスタック領域を準備
@@ -203,7 +202,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   console = new(console_buf) Console{kDesktopFGColor, kDesktopBGColor};
   console->SetWriter(pixel_writer);
   printk("Welcome to Mikan OS!\n");
-  SetLogLevel(kInfo);
+  SetLogLevel(kWarn);
 
   InitializeLAPICTimer();
 
@@ -267,20 +266,8 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   // }
   // WriteString(*pixel_writer, 90, 520, "<- Aegis chan", BK);
 
-  auto err = pci::ScanAllBus();
-  printk("ScanAllBus: %s\n", err.Name());
-
-  // PCIデバイス列挙
-  for (int i = 0; i < pci::num_device; ++i) {
-    const auto& dev = pci::devices[i];
-    auto vendor_id = pci::ReadVendorId(dev.bus, dev.device, dev.function);
-    auto cc = dev.class_code;
-    printk("%d.%d.%d: vend %04x, class %02x%02x%02x, head %02x\n",
-        dev.bus, dev.device, dev.function,
-        vendor_id, cc.base, cc.sub, cc.interface, dev.header_type);
-  }
-
   // xHCを探す
+  pci::ScanAllBus();
   pci::Device* xhc_dev = nullptr;
   for (int i = 0; i < pci::num_device; ++i) {
     // base      = 0x0c: シリアルバスコントローラ
@@ -332,7 +319,7 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     auto err = xhc.Initialize();
     Log(kDebug, "xhc.Initialize: %s\n", err.Name());
   }
-  Log (kInfo, "xHC starting\n");
+  Log(kInfo, "xHC starting\n");
   xhc.Run();
 
   // 機器が接続されているUSBポートに対し、設定を行う
@@ -358,13 +345,17 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   auto bgwindow = std::make_shared<Window>(screen_size.x, screen_size.y, frame_buffer_config.pixel_format);
   auto bgwriter = bgwindow->Writer();
-
   DrawDesktop(*bgwriter);
-  console->SetWindow(bgwindow);
 
   auto mouse_window = std::make_shared<Window>(kMouseCursorWidth, kMouseCursorHeight, frame_buffer_config.pixel_format);
   mouse_window->SetTransparentColor(kMouseTransparentColor);
   DrawMouseCursor(mouse_window->Writer(), {0, 0});
+
+  auto main_window = std::make_shared<Window>(160, 52, frame_buffer_config.pixel_format);
+  DrawWindow(*main_window->Writer(), "Hello Window");
+
+  auto console_window = std::make_shared<Window>(Console::kColumns * 8, Console::kRows * 16, frame_buffer_config.pixel_format);
+  console->SetWindow(console_window);
 
   FrameBuffer screen;
   if (auto err = screen.Initialize(frame_buffer_config)) {
@@ -385,29 +376,38 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     .Move({200, 200})
     .ID();
 
-  // GUIとしてのウィンドウを描画
-  auto main_window = std::make_shared<Window>(160, 68, frame_buffer_config.pixel_format);
-  DrawWindow(*main_window->Writer(), "Hello Window");
-  WriteString(*main_window->Writer(), {24, 28}, "Welcome to", {0, 0, 0});
-  WriteString(*main_window->Writer(), {24, 44}, "MikanOS world!", {0, 0, 0});
-
   auto main_window_layer_id = layer_manager->NewLayer()
-   .SetWindow(main_window)
-   .Move({300, 100})
-   .ID();
+    .SetWindow(main_window)
+    .Move({300, 100})
+    .ID();
+
+  console->SetLayerID(layer_manager->NewLayer()
+    .SetWindow(console_window)
+    .Move({0, 0})
+    .ID());
 
   layer_manager->UpDown(bglayer_id, 0);
-  layer_manager->UpDown(mouse_layer_id, 1);
-  layer_manager->UpDown(main_window_layer_id, 1);
+  layer_manager->UpDown(console->LayerID(), 1);
+  layer_manager->UpDown(main_window_layer_id, 2);
+  layer_manager->UpDown(mouse_layer_id, 3);
   layer_manager->Draw();
+
+  char str[128];
+  unsigned int count = 0;
 
   // 割り込みハンドラからのメッセージを処理するイベントループ
   while (true) {
+    ++count;
+    sprintf(str, "%010u", count);
+    FillRectangle(*main_window->Writer(), {24, 28}, {8 * 10, 16}, {0xc6, 0xc6, 0xc6});
+    WriteString(*main_window->Writer(), {24, 28}, str, {0, 0, 0});
+    layer_manager->Draw(main_window_layer_id);
+
     // cli 命令でキュー操作中に割り込みイベントを受け取らないようにする
     // キュー操作が終わり次第、sti 命令で割り込みイベントを受け取るようにする
     __asm__("cli");
     if (main_queue.Count() == 0) {
-      __asm__("sti\n\thlt");
+      __asm__("sti");
       continue;
     }
 

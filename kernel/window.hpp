@@ -32,7 +32,8 @@ class Window {
     Window& operator=(const Window& rhs) = delete;
 
     // 与えられた FrameBuffer に、このウィンドウの表示領域を描画する
-    void DrawTo(FrameBuffer& dst, Vector2D<int> position);
+    void DrawTo(FrameBuffer& dst, Vector2D<int> pos);
+    void DrawTo(FrameBuffer& dst, Vector2D<int> pos, const Rectangle<int>& area);
 
     // 透過色を設定
     void SetTransparentColor(std::optional<PixelColor> c);
@@ -53,6 +54,7 @@ class Window {
     // ウィンドウの幅・高さを取得
     int Width() const;
     int Height() const;
+    Vector2D<int> Size() const;
 
   private:
     int width_, height_;
