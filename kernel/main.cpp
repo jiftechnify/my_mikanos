@@ -26,6 +26,7 @@
 #include "message.hpp"
 #include "timer.hpp"
 #include "acpi.hpp"
+#include "keyboard.hpp"
 
 int printk(const char* format, ...) {
   va_list ap;
@@ -79,27 +80,26 @@ alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref, const acpi::RSDP& acpi_table) {
   MemoryMap memory_map{memory_map_ref};
 
+  // 起動初期のコンソール
   InitializeGraphics(frame_buffer_config_ref);
   InitializeConsole();
-
   printk("Welcome to MikanOS!\n");
   SetLogLevel(kWarn);
 
-  // セグメンテーションの設定
+  // 動的メモリ確保のためのメモリマネージャ
   InitializeSegmentation();
-
-  // ページングの設定(とりあえずアイデンティティマッピング)
   InitializePaging();
-
-  // メモリマネージャに利用可能なメモリ領域の情報を伝える
   InitializeMemoryManager(memory_map);
   
+  // 割り込み
   ::main_queue = new std::deque<Message>(32);
   InitializeInterrupt(main_queue);
 
+  // xHCI
   InitializePCI();
   usb::xhci::Initialize();
 
+  // スクリーンとレイヤマネージャ
   InitializeLayer();
   InitializeMainWindow();
   InitializeAegisWindow();
@@ -107,12 +107,12 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
 
   layer_manager->DrawAll();
 
-  // タイマ初期化
+  // タイマ
   acpi::Initialize(acpi_table);
   InitializeLAPICTimer(*main_queue);
-  
-  timer_manager->AddTimer(Timer(200, 2));
-  timer_manager->AddTimer(Timer(600, -1));
+
+  // キーボード
+  InitializeKeyboard(*main_queue);
 
   char str[128];
 
@@ -149,6 +149,11 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       if (msg.arg.timer.value > 0) {
         timer_manager->AddTimer(Timer(
             msg.arg.timer.timeout + 100, msg.arg.timer.value + 1));
+      }
+      break;
+    case Message::kKeyPush:
+      if (msg.arg.keyboard.ascii != 0) {
+        printk("%c", msg.arg.keyboard.ascii);
       }
       break;
     default:

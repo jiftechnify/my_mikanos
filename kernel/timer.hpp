@@ -40,6 +40,8 @@ class TimerManager {
 };
 
 extern TimerManager* timer_manager;
+extern unsigned long lapic_timer_freq; // 1秒あたりのLocal APIC タイマのカウント数
+const int kTimerFreq = 100;
 
 void InitializeLAPICTimer(std::deque<Message>& msg_queue);
 void LAPICTimerOnInterrupt();
