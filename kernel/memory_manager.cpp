@@ -39,7 +39,6 @@ Error BitmapMemoryManager::Free(FrameID start_frame, size_t num_frames) {
 }
 
 void BitmapMemoryManager::MarkAllocated(FrameID start_frame, size_t num_frames) {
-  Log(kWarn, "MarkAllocated: start_frame = %d, num_frames = %d\n", start_frame.ID(), num_frames);
   for (size_t i = 0; i < num_frames; ++i) {
     SetBit(FrameID{start_frame.ID() + i}, true);
   }
