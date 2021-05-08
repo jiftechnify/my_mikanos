@@ -1,4 +1,5 @@
 #include "timer.hpp"
+#include "interrupt.hpp"
 
 namespace {
   const uint32_t kCountMax = 0xffffffffu;
@@ -6,11 +7,6 @@ namespace {
   volatile uint32_t& initial_count = *reinterpret_cast<uint32_t*>(0xfee00380);
   volatile uint32_t& current_count = *reinterpret_cast<uint32_t*>(0xfee00390);
   volatile uint32_t& divide_config = *reinterpret_cast<uint32_t*>(0xfee003e0);
-}
-
-void InitializeLAPICTimer() {
-  divide_config = 0b1011;
-  lvt_timer = (0b001 << 16) | 32;
 }
 
 void StartLAPICTimer() {
@@ -23,4 +19,25 @@ uint32_t LAPICTimerElapsed() {
 
 void StopLAPICTimer() {
   initial_count = 0;
+}
+
+/**
+ * TimerManager
+ */
+void TimerManager::Tick() {
+  ++tick_;
+}
+
+TimerManager* timer_manager;
+
+void LAPICTimerOnInterrupt() {
+  timer_manager->Tick();
+}
+
+void InitializeLAPICTimer() {
+  timer_manager = new TimerManager;
+
+  divide_config = 0b1011; // divide 1:1
+  lvt_timer = (0b010 << 16) | InterruptVector::kLAPICTimer;  // not-masked, periodic
+  initial_count = 0x1000000u;
 }
