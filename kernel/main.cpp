@@ -6,27 +6,25 @@
 #include <vector>
 #include <deque>
 #include <limits>
-
 #include "frame_buffer_config.hpp"
+#include "memory_map.hpp"
 #include "graphics.hpp"
+#include "mouse.hpp"
 #include "font.hpp"
 #include "console.hpp"
 #include "pci.hpp"
 #include "logger.hpp"
-#include "mouse.hpp"
-#include "asmfunc.h"
+#include "usb/xhci/xhci.hpp"
 #include "interrupt.hpp"
-#include "queue.hpp"
-#include "memory_map.hpp"
+#include "asmfunc.h"
 #include "segment.hpp"
 #include "paging.hpp"
-#include "layer.hpp"
-#include "window.hpp"
 #include "memory_manager.hpp"
-#include "timer.hpp"
+#include "window.hpp"
+#include "layer.hpp"
 #include "grayscale_image.hpp"
 #include "message.hpp"
-#include "usb/xhci/xhci.hpp"
+#include "timer.hpp"
 
 int printk(const char* format, ...) {
   va_list ap;
@@ -76,11 +74,6 @@ std::deque<Message>* main_queue;
 
 // カーネルが利用するスタック領域を準備
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
-
-// メモリマネージャ
-char memory_manager_buf[sizeof(BitmapMemoryManager)];
-BitmapMemoryManager* memory_manager;
-
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref) {
   MemoryMap memory_map{memory_map_ref};
@@ -146,7 +139,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
       Log(kError, "Unknown message type: %d\n", msg.type);
     }
   }
-  while (1) __asm__("hlt");
 }
 
 extern "C" void __cxa_pure_virtual() {
