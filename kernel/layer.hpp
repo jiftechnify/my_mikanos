@@ -62,8 +62,8 @@ class LayerManager {
     Layer& NewLayer();
 
 
-    // 表示状態にあるレイヤを再描画
-    void Draw() const;
+    // 画面全体を再描画
+    void DrawAll() const;
     // 指定領域を再描画
     void Draw(const Rectangle<int>& area) const;
     // 指定したレイヤーとそれより前面にあるレイヤーのみ再描画
@@ -98,4 +98,6 @@ class LayerManager {
 };
 
 extern LayerManager* layer_manager;
+
+void InitializeLayer();
 

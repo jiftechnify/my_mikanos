@@ -4,6 +4,7 @@
 #include <limits>
 
 #include "error.hpp"
+#include "memory_map.hpp"
 
 // ユーザ定義リテラルを利用してメモリサイズを単位付きのリテラルで表現できるようにする
 namespace {
@@ -69,5 +70,5 @@ class BitmapMemoryManager {
     void SetBit(FrameID frame, bool allocated);
 };
 
-Error InitializeHeap(BitmapMemoryManager& memory_manager);
+void InitializeMemoryManager(const MemoryMap& memory_map);
 

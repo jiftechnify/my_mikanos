@@ -13,15 +13,6 @@
 #include  "memory_map.hpp"
 #include  "elf.hpp"
 
-struct MemoryMap {
-  UINTN buffer_size;
-  VOID* buffer;
-  UINTN map_size;
-  UINTN map_key;
-  UINTN descriptor_size;
-  UINT32 descriptor_version;
-};
-
 EFI_STATUS GetMemoryMap(struct MemoryMap* map) {
   if (map->buffer == NULL) {
     return EFI_BUFFER_TOO_SMALL;
@@ -310,7 +301,8 @@ EFI_STATUS EFIAPI UefiMain(
   UINT64 kernel_first_addr, kernel_last_addr;
   CalcLoadAddressRange(kernel_ehdr, &kernel_first_addr, &kernel_last_addr);
 
-  UINTN num_pages = (kernel_last_addr - kernel_first_addr + 0xfff) / 0x1000;
+  UINTN num_pages = (kernel_last_addr - kernel_first_addr + 0xfff) / 0x1000;\
+  Print(L"#pages: %d", num_pages);
 
   status = gBS->AllocatePages(AllocateAddress, EfiLoaderData,
                               num_pages, &kernel_first_addr);
@@ -321,7 +313,7 @@ EFI_STATUS EFIAPI UefiMain(
 
   // LOADセグメントをメモリにコピー
   CopyLoadSegments(kernel_ehdr);
-  Print(L"Kernel: 0x%0lx - ox%0lx\n", kernel_first_addr, kernel_last_addr);
+  Print(L"Kernel: 0x%0lx - 0x%0lx\n", kernel_first_addr, kernel_last_addr);
 
   // カーネルELFを読み込むための一時領域を解放
   status = gBS->FreePool(kernel_buffer);

@@ -1,5 +1,8 @@
 #include "layer.hpp"
+
 #include <algorithm>
+#include "console.hpp"
+#include "logger.hpp"
 
 Layer::Layer(unsigned int id) : id_{id} {
 }
@@ -98,12 +101,8 @@ void LayerManager::MoveRelative(unsigned int id, Vector2D<int> pos_diff) {
   Draw(id);
 }
 
-void LayerManager::Draw() const {
-  Rectangle<int> screen_area;
-  screen_area.pos = {0, 0};
-  screen_area.size = {screen_->Writer().Width(), screen_->Writer().Height()};
-
-  Draw(screen_area);
+void LayerManager::DrawAll() const {
+  Draw({{0, 0}, ScreenSize()});
 }
 
 void LayerManager::Draw(const Rectangle<int>& area) const {
@@ -184,5 +183,42 @@ Layer* LayerManager::FindLayerByPosition(Vector2D<int> pos, unsigned int exclude
   return *it;
 }
 
+namespace{
+  FrameBuffer* screen;
+}
+
 LayerManager* layer_manager;
+
+void InitializeLayer() {
+  const auto screen_size = ScreenSize();
+
+  auto bgwindow = std::make_shared<Window>(screen_size.x, screen_size.y, screen_config.pixel_format);
+  DrawDesktop(*bgwindow->Writer());
+
+  auto console_window = std::make_shared<Window>(Console::kColumns * 8, Console::kRows * 16, screen_config.pixel_format);
+  console->SetWindow(console_window);
+  
+  screen = new FrameBuffer;
+  if (auto err = screen->Initialize(screen_config)) {
+    Log(kError, "failed to intialize frame buffer: %s at %s:%d\n",
+        err.Name(), err.File(), err.Line());
+    exit(1);
+  }
+
+  layer_manager = new LayerManager;
+  layer_manager->SetWriter(screen);
+
+  auto bglayer_id = layer_manager->NewLayer()
+    .SetWindow(bgwindow)
+    .Move({0, 0})
+    .ID();
+
+  console->SetLayerID(layer_manager->NewLayer()
+    .SetWindow(console_window)
+    .Move({0, 0})
+    .ID());
+
+  layer_manager->UpDown(bglayer_id, 0);
+  layer_manager->UpDown(console->LayerID(), 1);
+}
 
