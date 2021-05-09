@@ -8,11 +8,14 @@ class Grayscale4GradsImage {
     Grayscale4GradsImage(int width, int height, uint8_t* bmp_data);
     const int Width() const { return width_; }
     const int Height() const { return height_; }
-    const uint8_t ColorNumberAt(Vector2D<int> pos) const;
+    void SetColorPalette(PixelColor palette[4]);
+    const PixelColor& ColorAt(Vector2D<int> pos) const;
 
   private:
     int width_, height_;
     uint8_t* bmp_data_;
+    PixelColor* color_palette_;
+    const uint8_t ColorNumberAt(Vector2D<int> pos) const;
 };
 
 // 2bit = 1px => 1byte = 4px
@@ -22,6 +25,13 @@ constexpr int Grayscale4GradsBMPDataSize(int width, int height) {
 }
 
 namespace {
+  PixelColor grayscale_4grads_default_color_palette[4] = {
+    {0, 0, 0},        // 0: black
+    {102, 102, 102},  // 1: dark gray
+    {187, 187, 187},  // 2: light gray
+    {255, 255, 255},  // 3: white
+  };
+
   const int aegis_width = 20;
   const int aegis_height = 34;
   uint8_t grayscale_aegis_bmp_data[Grayscale4GradsBMPDataSize(aegis_width, aegis_height)] = {
