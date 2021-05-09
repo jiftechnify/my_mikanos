@@ -106,9 +106,11 @@ void InputTextWindow(char c) {
 std::shared_ptr<Window> aegis_window;
 unsigned int aegis_window_layer_id;
 void InitializeAegisWindow() {
+  auto img = MakeGrayscaleAegis();
+
   aegis_window = std::make_shared<Window>(92, 164, screen_config.pixel_format);
   DrawWindow(*aegis_window->Writer(), "Aegis");
-  DrawGrayscale4GradsImageScaled(*aegis_window->Writer(), {6, 24}, 4, GrayscaleAegis);
+  DrawGrayscale4GradsImageScaled(*aegis_window->Writer(), {6, 24}, 4, img);
   
   aegis_window_layer_id = layer_manager->NewLayer()
     .SetWindow(aegis_window)

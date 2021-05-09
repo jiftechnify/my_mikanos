@@ -3,9 +3,16 @@
 #include "graphics.hpp"
 #include <cstdint>
 
-struct Grayscale4GradsImage {
-  int width, height;
-  const uint8_t* bmp_data;
+class Grayscale4GradsImage {
+  public:
+    Grayscale4GradsImage(int width, int height, uint8_t* bmp_data);
+    const int Width() const { return width_; }
+    const int Height() const { return height_; }
+    const uint8_t ColorNumberAt(Vector2D<int> pos) const;
+
+  private:
+    int width_, height_;
+    uint8_t* bmp_data_;
 };
 
 // 2bit = 1px => 1byte = 4px
@@ -17,7 +24,7 @@ constexpr int Grayscale4GradsBMPDataSize(int width, int height) {
 namespace {
   const int aegis_width = 20;
   const int aegis_height = 34;
-  const uint8_t grayscale_aegis_bmp_data[Grayscale4GradsBMPDataSize(aegis_width, aegis_height)] = {
+  uint8_t grayscale_aegis_bmp_data[Grayscale4GradsBMPDataSize(aegis_width, aegis_height)] = {
     0xff, 0xfc, 0x00, 0x3f, 0xff,
     0xff, 0xc1, 0x55, 0x43, 0xff,
     0xff, 0x16, 0xaa, 0x94, 0xff,
@@ -55,8 +62,7 @@ namespace {
   };
 }
 
-const Grayscale4GradsImage GrayscaleAegis{aegis_width, aegis_height, grayscale_aegis_bmp_data};
-
 void DrawGrayscale4GradsImage(PixelWriter& writer, Vector2D<int> pos, const Grayscale4GradsImage& img);
 void DrawGrayscale4GradsImageScaled(PixelWriter& writer, Vector2D<int> pos, int scale, const Grayscale4GradsImage& img);
 
+const Grayscale4GradsImage MakeGrayscaleAegis();
