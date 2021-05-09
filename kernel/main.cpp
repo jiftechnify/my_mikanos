@@ -142,8 +142,8 @@ std::deque<Message>* main_queue;
 // カーネルが利用するスタック領域を準備
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
-void TaskB(int task_b_id, int data) {
-  printk("Task B: task_id=%d, data=%d\n", task_b_id, data);
+void TaskB(uint64_t task_id, int64_t data) {
+  printk("Task B: task_id=%lu, data=%ld\n", task_id, data);
   char str[128];
   int count = 0;
   while (true) {
@@ -153,6 +153,11 @@ void TaskB(int task_b_id, int data) {
     WriteString(*task_b_window->Writer(), {24, 28}, str, ToColor(0));
     layer_manager->Draw(task_b_window_layer_id);
   }
+}
+
+void TaskIdle(uint64_t task_id, int64_t data) {
+  printk("TaskIdle: task_id=%lu, data=%lx\n", task_id, data);
+  while (true) __asm__("hlt");
 }
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref, const acpi::RSDP& acpi_table) {
@@ -201,25 +206,12 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   __asm__("sti");
   bool textbox_cursor_visible = false;
 
-  // Task B の初期化
-  std::vector<uint64_t> task_b_stack(1024);
-  uint64_t task_b_stack_end = reinterpret_cast<uint64_t>(&task_b_stack[1024]);
-  
-  memset(&task_b_ctx, 0, sizeof(task_b_ctx));
-  task_b_ctx.rip = reinterpret_cast<uint64_t>(TaskB);
-  task_b_ctx.rdi = 1;
-  task_b_ctx.rsi = 43;
-  
-  task_b_ctx.cr3 = GetCR3();
-  task_b_ctx.rflags = 0x202;  // IF(割り込みフラグ) = 1
-  task_b_ctx.cs = kKernelCS;
-  task_b_ctx.ss = kKernelSS;
-  task_b_ctx.rsp = (task_b_stack_end & ~0xflu) - 8;
-  
-  // MXCSR のすべての例外をマスクする
-  *reinterpret_cast<uint32_t*>(&task_b_ctx.fxsave_area[24]) = 0x1f80;
-
   InitializeTask();
+  task_manager->NewTask().InitContext(TaskB, 45);
+  task_manager->NewTask().InitContext(TaskIdle, 0xdeadbeef);
+  task_manager->NewTask().InitContext(TaskIdle, 0xcafebabe);
+  task_manager->NewTask().InitContext(TaskIdle, 0x12345678);
+  task_manager->NewTask().InitContext(TaskIdle, 0x98765432);
 
   char str[128];
 

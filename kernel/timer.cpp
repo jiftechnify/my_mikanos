@@ -80,7 +80,7 @@ void LAPICTimerOnInterrupt() {
   NotifyEndOfInterrupt(); // 先にタスクを切り替えてしまうと、これが呼び出されなくなってしまう
 
   if (task_timer_timeout) {
-    SwitchTask();
+    task_manager->SwitchTask();
   }
 }
 
