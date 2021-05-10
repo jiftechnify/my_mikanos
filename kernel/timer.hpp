@@ -28,7 +28,7 @@ inline bool operator<(const Timer& lhs, const Timer& rhs) {
 
 class TimerManager {
   public:
-    TimerManager(std::deque<Message>& msg_queue);
+    TimerManager();
     void AddTimer(const Timer& timer);
     bool Tick();
     unsigned long CurrentTick() const { return tick_; }
@@ -36,14 +36,13 @@ class TimerManager {
   private:
     volatile unsigned long tick_{0};
     std::priority_queue<Timer> timers_{};
-    std::deque<Message>& msg_queue_;
 };
 
 extern TimerManager* timer_manager;
 extern unsigned long lapic_timer_freq; // 1秒あたりのLocal APIC タイマのカウント数
 const int kTimerFreq = 100;
 
-void InitializeLAPICTimer(std::deque<Message>& msg_queue);
+void InitializeLAPICTimer();
 void LAPICTimerOnInterrupt();
 
 // タスク切り替えのタイミングを決めるタイマ
