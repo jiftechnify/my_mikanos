@@ -67,12 +67,25 @@ std::optional<Message> Task::ReceiveMessage() {
 /**
   * TaskManager
   */
+namespace {
+  void TaskIdle(uint64_t task_id, int64_t data) {
+    while (true) __asm__("hlt");
+  }
+}
+
 TaskManager::TaskManager() {
   // ここで初期化されるメインタスクのレベルは最大値にする
   Task& task = NewTask()
     .SetLevel(current_level_)
     .SetRunning(true);
   running_[current_level_].push_back(&task);
+
+  // 全タスクがスリープ中になる状況を防ぐため、アイドルタスクを入れておく
+  Task& idle = NewTask()
+    .InitContext(TaskIdle, 0)
+    .SetLevel(0)
+    .SetRunning(true);
+  running_[0].push_back(&idle);
 }
 
 Task& TaskManager::NewTask() {
