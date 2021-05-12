@@ -67,9 +67,10 @@ class LayerManager {
     void DrawAll() const;
     // 指定領域を再描画
     void Draw(const Rectangle<int>& area) const;
-    // 指定したレイヤーとそれより前面にあるレイヤーのみ再描画
+    // 指定したレイヤとそれより前面にあるレイヤのみ再描画
     void Draw(unsigned int id) const;
-
+    // 指定したレイヤより前面のレイヤの、指定範囲のみ再描画
+    void Draw(unsigned int id, Rectangle<int> area) const;
 
     // 指定したレイヤを指定座標に移動
     void Move(unsigned int id, Vector2D<int> new_pos);
@@ -107,6 +108,19 @@ extern LayerManager* layer_manager;
 
 void InitializeLayer();
 void ProcessLayerMessage(const Message& msg);
+
+constexpr Message MakeLayerMessage(
+    uint64_t task_id, unsigned int layer_id,
+    LayerOperation op, const Rectangle<int>& area) {
+  Message msg{Message::kLayer, task_id};
+  msg.arg.layer.layer_id = layer_id;
+  msg.arg.layer.op = op;
+  msg.arg.layer.x = area.pos.x;
+  msg.arg.layer.y = area.pos.y;
+  msg.arg.layer.w = area.size.x;
+  msg.arg.layer.h = area.size.y;
+  return msg;
+}
 
 /* 選択されたレイヤをアクティブにする責務を持つクラス */
 class ActiveLayer {

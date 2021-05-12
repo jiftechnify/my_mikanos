@@ -28,6 +28,7 @@
 #include "acpi.hpp"
 #include "keyboard.hpp"
 #include "task.hpp"
+#include "terminal.hpp"
 
 int printk(const char* format, ...) {
   va_list ap;
@@ -223,6 +224,12 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     .Wakeup()
     .ID();
 
+  // ターミナル起動
+  const uint64_t task_terminal_id = task_manager->NewTask()
+    .InitContext(TaskTerminal, 0)
+    .Wakeup()
+    .ID();
+
   // 割り込み時にメインタスクにメッセージを送信するので、初期化をメインタスク初期化完了後に行う
   usb::xhci::Initialize();
   InitializeKeyboard();
@@ -264,6 +271,10 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
         textbox_cursor_visible = !textbox_cursor_visible;
         DrawTextCursor(textbox_cursor_visible);
         layer_manager->Draw(text_window_layer_id);
+
+        __asm__("cli");
+        task_manager->SendMessage(task_terminal_id, *msg);
+        __asm__("sti");
       }
       break;
     case Message::kKeyPush:
