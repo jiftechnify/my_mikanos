@@ -75,6 +75,10 @@ void Mouse::OnInterrupt(uint8_t buttons, int8_t displacement_x, int8_t displacem
     auto layer = layer_manager->FindLayerByPosition(position_, layer_id_);
     if (layer && layer->IsDraggable()) {
       drag_layer_id_ = layer->ID();
+      active_layer->Activate(layer->ID());
+    } else {
+      // ドラッグ不可レイヤをクリックした場合はすべてのウィンドウを非アクティブに
+      active_layer->Activate(0);
     }
   } else if (prev_left_pressed && left_pressed) {
     // ドラッグ中
@@ -100,6 +104,7 @@ void InitializeMouse() {
   auto mouse = std::make_shared<Mouse>(mouse_layer_id);
   mouse->SetPosition({200, 200});
   layer_manager->UpDown(mouse->LayerID(), std::numeric_limits<int>::max());
+  active_layer->SetMouseLayer(mouse_layer_id);
   
   usb::HIDMouseDriver::default_observer =
     [mouse](uint8_t buttons, int8_t displacement_x, int8_t displacement_y) {

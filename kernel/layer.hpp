@@ -85,8 +85,14 @@ class LayerManager {
     // レイヤを非表示にする
     void Hide(unsigned int id);
 
-    // 指定位置にある最前面のレイヤーを取得
+    // 指定位置にある最前面のレイヤを取得
     Layer* FindLayerByPosition(Vector2D<int> pos, unsigned int exclude_id) const;
+    // 指定IDのレイヤを取得
+    Layer* FindLayer(unsigned int id);
+    
+    // 指定IDのレイヤの高さ
+    int GetHeight(unsigned int id);
+  
 
   private:
     FrameBuffer* screen_{nullptr};
@@ -95,12 +101,26 @@ class LayerManager {
     std::vector<Layer*> layer_stack_{};             // レイヤの重なり(奥行き方向の位置関係)を表現する
     unsigned int latest_id_{0};
 
-    Layer* FindLayer(unsigned int id);
 };
 
 extern LayerManager* layer_manager;
 
 void InitializeLayer();
-
 void ProcessLayerMessage(const Message& msg);
+
+/* 選択されたレイヤをアクティブにする責務を持つクラス */
+class ActiveLayer {
+  public:
+    ActiveLayer(LayerManager& manager);
+    void SetMouseLayer(unsigned int mouse_layer_id);
+    void Activate(unsigned int layer_id);
+    unsigned int GetActive() const { return active_layer_id_; }
+
+  private:
+    LayerManager& manager_;
+    unsigned int active_layer_id_{0};
+    unsigned int mouse_layer_id_{0};
+};
+
+extern ActiveLayer* active_layer;
 

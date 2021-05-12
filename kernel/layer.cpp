@@ -183,11 +183,54 @@ Layer* LayerManager::FindLayerByPosition(Vector2D<int> pos, unsigned int exclude
   return *it;
 }
 
+int LayerManager::GetHeight(unsigned int id) {
+  for (int h = 0; h < layer_stack_.size(); ++h) {
+    if (layer_stack_[h]->ID() == id) {
+      return h;
+    }
+  }
+  return -1;
+}
+
+/**
+ * ActiveLayer
+ */
+ActiveLayer::ActiveLayer(LayerManager& manager) : manager_{manager} {
+}
+
+void ActiveLayer::SetMouseLayer(unsigned int mouse_layer_id) {
+  mouse_layer_id_ = mouse_layer_id;
+}
+
+void ActiveLayer::Activate(unsigned int layer_id) {
+  if (active_layer_id_ == layer_id) {
+    return;
+  }
+
+  // これまでアクティブだったレイヤを非アクティブに
+  if (active_layer_id_ > 0) {
+    Layer* layer = manager_.FindLayer(active_layer_id_);
+    layer->GetWindow()->Deactivate();
+    manager_.Draw(active_layer_id_);
+  }
+
+  // 新しいアクティブレイヤを最前面に移動
+  active_layer_id_ = layer_id;
+  if (active_layer_id_ > 0) {
+    Layer* layer = manager_.FindLayer(active_layer_id_);
+    layer->GetWindow()->Activate();
+    manager_.UpDown(active_layer_id_, manager_.GetHeight(mouse_layer_id_) - 1);
+    manager_.Draw(active_layer_id_);
+  }
+}
+
+
 namespace{
   FrameBuffer* screen;
 }
 
 LayerManager* layer_manager;
+ActiveLayer* active_layer;
 
 void InitializeLayer() {
   const auto screen_size = ScreenSize();
@@ -220,6 +263,8 @@ void InitializeLayer() {
 
   layer_manager->UpDown(bglayer_id, 0);
   layer_manager->UpDown(console->LayerID(), 1);
+
+  active_layer = new ActiveLayer{*layer_manager};
 }
 
 void ProcessLayerMessage(const Message& msg) {
