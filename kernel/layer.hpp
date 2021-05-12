@@ -6,6 +6,7 @@
 
 #include "graphics.hpp"
 #include "window.hpp"
+#include "message.hpp"
 
 /* 画面上の描画レイヤ */
 class Layer {
@@ -100,4 +101,6 @@ class LayerManager {
 extern LayerManager* layer_manager;
 
 void InitializeLayer();
+
+void ProcessLayerMessage(const Message& msg);
 
