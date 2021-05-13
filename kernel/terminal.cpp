@@ -6,6 +6,7 @@
 #include "logger.hpp"
 #include "font.hpp"
 #include "pci.hpp"
+#include "fat.hpp"
 #include <utility>
 
 Terminal::Terminal() {
@@ -137,10 +138,12 @@ void Terminal::ExecuteLine() {
       Print(first_arg);
     }
     Print("\n");
-  } else if (strcmp(command, "clear") == 0) {
+  } 
+  else if (strcmp(command, "clear") == 0) {
     FillRectangle(*window_->InnerWriter(), {4, 4}, {8*kColumns, 16*kRows}, {0, 0, 0});
     cursor_.y = 0;
-  } else if (strcmp(command, "lspci") == 0) {
+  } 
+  else if (strcmp(command, "lspci") == 0) {
     char s[64];
     for (int i = 0; i < pci::num_device; ++i) {
       const auto& dev = pci::devices[i];
@@ -150,7 +153,35 @@ void Terminal::ExecuteLine() {
           dev.class_code.base, dev.class_code.sub, dev.class_code.interface);
       Print(s);
     }
-  } else if (command[0] != 0) {
+  }
+  else if (strcmp(command, "ls") == 0) {
+    auto root_dir_entries = fat::GetSectorByCluster<fat::DirectoryEntry>(fat::boot_volume_image->root_cluster);
+    auto entries_per_cluster =
+      fat::boot_volume_image->bytes_per_sector / sizeof(fat::DirectoryEntry) * fat::boot_volume_image->sectors_per_cluster;
+    char base[9], ext[4];
+    char s[64];
+    Log(kWarn, "#entries: %d\n", entries_per_cluster);
+    Log(kWarn, "sizeof DirectoryEntry: %d\n", sizeof(fat::DirectoryEntry));
+    for (int i = 0; i < entries_per_cluster; ++i) {
+      ReadName(root_dir_entries[i], base, ext);
+      Log(kWarn, "%d\n", static_cast<uint8_t>(base[0]));
+      if (base[0] == 0x00) {
+        break;
+      } else if (static_cast<uint8_t>(base[0]) == 0xe5) {
+        continue;
+      } else if (root_dir_entries[i].attr == fat::Attribute::kLongName) {
+        continue;
+      }
+      
+      if (ext[0]) {
+        sprintf(s, "%s.%s\n", base, ext);
+      } else {
+        sprintf(s, "%s\n", base);
+      }
+      Print(s);
+    }
+  }
+  else if (command[0] != 0) {
     Print("no such command: ");
     Print(command);
     Print("\n");
