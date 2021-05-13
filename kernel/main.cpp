@@ -102,20 +102,6 @@ void InputTextWindow(char c) {
   layer_manager->Draw(text_window_layer_id);
 }
 
-std::shared_ptr<ToplevelWindow> task_b_window;
-unsigned int task_b_window_layer_id;
-void InitializeTaskBWindow() {
-  task_b_window = std::make_shared<ToplevelWindow>(160, 52, screen_config.pixel_format, "Task B");
-
-  task_b_window_layer_id = layer_manager->NewLayer()
-    .SetWindow(task_b_window)
-    .SetDraggable(true)
-    .Move({100, 100})
-    .ID();
-
-  layer_manager->UpDown(task_b_window_layer_id, std::numeric_limits<int>::max());
-}
-
 std::shared_ptr<ToplevelWindow> aegis_window;
 unsigned int aegis_window_layer_id;
 void InitializeAegisWindow() {
@@ -135,46 +121,6 @@ void InitializeAegisWindow() {
 
 // カーネルが利用するスタック領域を準備
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
-
-void TaskB(uint64_t task_id, int64_t data) {
-  printk("Task B: task_id=%lu, data=%ld\n", task_id, data);
-  char str[128];
-  int count = 0;
-
-  __asm__("cli");
-  Task& task = task_manager->CurrentTask();
-  __asm__("sti");
-
-  while (true) {
-    ++count;
-    sprintf(str, "%010d", count);
-    FillRectangle(*task_b_window->Writer(), {24, 28}, {8 * 10, 16}, ToColor(0xc6c6c6));
-    WriteString(*task_b_window->Writer(), {24, 28}, str, ToColor(0));
-
-    // 再描画要求をメインタスクに送信
-    Message msg{Message::kLayer, task_id};
-    msg.arg.layer.layer_id = task_b_window_layer_id;
-    msg.arg.layer.op = LayerOperation::Draw;
-    __asm__("cli");
-    task_manager->SendMessage(1, msg);
-    __asm__("sti");
-
-    // 描画処理終了待ちループ
-    while (true) {
-      __asm__("cli");
-      auto msg = task.ReceiveMessage();
-      if (!msg) {
-        task.Sleep();
-        __asm__("sti");
-        continue;
-      }
-
-      if (msg->type == Message::kLayerFinish) {
-        break;
-      }
-    }
-  }
-}
 
 extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_ref, const MemoryMap& memory_map_ref, const acpi::RSDP& acpi_table) {
   MemoryMap memory_map{memory_map_ref};
@@ -200,7 +146,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   InitializeLayer();
   InitializeMainWindow();
   InitializeTextWindow();
-  InitializeTaskBWindow();
   InitializeAegisWindow();
   layer_manager->DrawAll();
 
@@ -219,10 +164,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
   // タスクマネージャ
   InitializeTask();
   Task& main_task = task_manager->CurrentTask();
-  const uint64_t taskb_id = task_manager->NewTask()
-    .InitContext(TaskB, 45)
-    .Wakeup()
-    .ID();
 
   // ターミナル起動
   const uint64_t task_terminal_id = task_manager->NewTask()
@@ -280,12 +221,6 @@ extern "C" void KernelMainNewStack(const FrameBufferConfig& frame_buffer_config_
     case Message::kKeyPush:
       if (auto act = active_layer->GetActive(); act == text_window_layer_id) {
         InputTextWindow(msg->arg.keyboard.ascii);
-      } else if (act == task_b_window_layer_id) {
-        if (msg->arg.keyboard.ascii == 's') {
-          printk("sleep TaskB: %s\n", task_manager->Sleep(taskb_id).Name());
-        } else if (msg->arg.keyboard.ascii == 'w') {
-          printk("wakeup TaskB: %s\n", task_manager->Wakeup(taskb_id).Name());
-        }
       } else {
         __asm__("cli");
         auto task_it = layer_task_map->find(act);
