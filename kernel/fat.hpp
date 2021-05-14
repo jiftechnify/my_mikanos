@@ -65,6 +65,8 @@ namespace fat {
   } __attribute__((packed));
 
   extern BPB* boot_volume_image;
+  extern unsigned long bytes_per_cluster;
+
   void Initialize(void* volume_image);
 
   // 指定されたクラスタの先頭セクタのメモリアドレス
@@ -78,5 +80,18 @@ namespace fat {
   
   // ディレクトリエントリの短名を、基本名と拡張子に分割して取得する
   void ReadName(const DirectoryEntry& entry, char* base, char* ext);
+
+  // クラスタ末尾を表す特殊クラスタ番号
+  static const unsigned long kEndOfClusterchain = 0x0ffffffflu;
+
+  // クラスタチェーン(1つのファイルを成すクラスタの連結リスト)における、あるクラスタの次のクラスタの番号を取得
+  unsigned long NextCluster(unsigned long cluster);
+
+  // クラスタ番号で指定されたディレクトリ内の特定の名前のファイルを指すディレクトリエントリ
+  DirectoryEntry* FindFile(const char* name, unsigned long directory_cluster = 0);
+
+  // ファイル名が一致するか
+  bool NameIsEqual(const DirectoryEntry& entry, const char* name);
+
 } // namespace fat
 

@@ -4,6 +4,7 @@
 #include <queue>
 #include "graphics.hpp"
 #include "window.hpp"
+#include "fat.hpp"
 
 
 class Terminal {
@@ -15,8 +16,10 @@ class Terminal {
     unsigned int LayerID() const { return layer_id_; }
     Rectangle<int> BlinkCursor();
     Rectangle<int> InputKey(uint8_t modifier, uint8_t keycode, char ascii);
+    void Print(char c);
     void Print(const char* s);
     void ExecuteLine();
+    void ExecuteFile(const fat::DirectoryEntry& entry);
 
   private:
     std::shared_ptr<ToplevelWindow> window_;
