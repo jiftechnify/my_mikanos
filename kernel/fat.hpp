@@ -76,7 +76,7 @@ namespace fat {
     return reinterpret_cast<T*>(GetClusterAddr(cluster));
   }
   
-  // ディレクトリ円の短名を、基本名と拡張子に分割して取得する
+  // ディレクトリエントリの短名を、基本名と拡張子に分割して取得する
   void ReadName(const DirectoryEntry& entry, char* base, char* ext);
 } // namespace fat
 
