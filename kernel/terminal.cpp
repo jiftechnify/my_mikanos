@@ -6,6 +6,7 @@
 #include "logger.hpp"
 #include "font.hpp"
 #include "pci.hpp"
+#include "elf.hpp"
 #include <utility>
 
 Terminal::Terminal() {
@@ -213,12 +214,41 @@ void Terminal::ExecuteLine() {
       Print(command);
       Print("\n");
     } else {
-      ExecuteFile(*file_entry);
+      ExecuteFile(*file_entry, command, first_arg);
     }
   }
 }
 
-void Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry) {
+namespace {
+  std::vector<char*>MakeArgVector(char* command, char* first_arg) {
+    std::vector<char*> argv;
+    argv.push_back(command);
+
+    char* p = first_arg;
+    while (true) {
+      while (isspace(p[0])) {
+        ++p;
+      }
+      if (p[0] == 0) {
+        break;
+      }
+      argv.push_back(p);
+
+      while (p[0] != 0 && !isspace(p[0])) {
+        ++p;
+      }
+      if (p[0] == 0) {
+        break;
+      }
+      p[0] = 0;
+      ++p;
+    }
+
+    return argv;
+  }
+}
+
+void Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command, char* first_arg)  {
   auto cluster = file_entry.FirstCluster();
   auto remain_bytes = file_entry.file_size;
 
@@ -233,9 +263,27 @@ void Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry) {
     p += copy_bytes;
     cluster = fat::NextCluster(cluster);
   }
-  using Func = void ();
-  auto f = reinterpret_cast<Func*>(&file_buf[0]);
-  f();
+
+  auto elf_header = reinterpret_cast<Elf64_Ehdr*>(&file_buf[0]);
+  if (memcmp(elf_header->e_ident, "\x7f" "ELF", 4) != 0) {  // ELFの先頭4バイトは '0x7f' 'E' 'L' 'F'。 C++では文字列リテラルを連続で書くと連結される
+    // ELFでない場合
+    using Func = void ();
+    auto f = reinterpret_cast<Func*>(&file_buf[0]);
+    f();
+    return;
+  }
+
+  auto argv = MakeArgVector(command, first_arg);
+  auto entry_addr = elf_header->e_entry;
+  entry_addr += reinterpret_cast<uintptr_t>(&file_buf[0]);
+
+  using Func = int (int, char**);
+  auto f = reinterpret_cast<Func*>(entry_addr);
+  auto ret = f(argv.size(), &argv[0]);
+
+  char s[64];
+  sprintf(s, "app exited. ret = %d\n", ret);
+  Print(s);
 }
 
 void Terminal::DrawCursor(bool visible) {
