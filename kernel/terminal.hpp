@@ -5,7 +5,7 @@
 #include "graphics.hpp"
 #include "window.hpp"
 #include "fat.hpp"
-
+#include "error.hpp"
 
 class Terminal {
   public:
@@ -19,7 +19,7 @@ class Terminal {
     void Print(char c);
     void Print(const char* s);
     void ExecuteLine();
-    void ExecuteFile(const fat::DirectoryEntry& entry, char* command, char* first_arg);
+    Error ExecuteFile(const fat::DirectoryEntry& entry, char* command, char* first_arg);
 
   private:
     std::shared_ptr<ToplevelWindow> window_;

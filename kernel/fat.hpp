@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 
 namespace fat {
   // BIOS Parameter Block
@@ -93,5 +94,7 @@ namespace fat {
   // ファイル名が一致するか
   bool NameIsEqual(const DirectoryEntry& entry, const char* name);
 
+  // buf に entry が指すファイルの内容を読み込む
+  size_t LoadFile(void* buf, size_t len, const DirectoryEntry& entry);
 } // namespace fat
 
