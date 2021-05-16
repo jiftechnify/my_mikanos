@@ -473,10 +473,6 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
   if (argc.error) {
     return argc.error;
   }
-  Log(kWarn, "argc: %d\n", argc.value);
-  for (int i = 0; i < argc.value; i++) {
-    Log(kWarn, "argv[%d]: %s\n ", i, argv[i]);
-  }
 
   // アプリが利用できるスタック領域を用意
   LinearAddress4Level stack_frame_addr{0xffff'ffff'ffff'e000};
@@ -486,7 +482,7 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
 
   auto entry_addr = elf_header->e_entry;
   // CS = gdt[3], SS = gdt[4]
-  CallApp(argc.value,  argv, 3 << 3 | 3, 4 << 3 | 3, entry_addr, stack_frame_addr.value + 4096 - 8); 
+  CallApp(argc.value,  argv, 4 << 3 | 3, 3 << 3 | 3, entry_addr, stack_frame_addr.value + 4096 - 8); 
 
   const auto addr_first = GetFirstLoadAddress(elf_header);
   if (auto err = CleanPageMaps(LinearAddress4Level{addr_first})) {

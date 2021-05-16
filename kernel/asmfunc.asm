@@ -240,6 +240,36 @@ IntHandlerLAPICTimer: ; void IntHandlerLAPICTimer();
   pop rbp
   iretq
 
+global WriteMSR
+WriteMSR: ; void WriteMSR(uint32_t msr, uint64_t value);
+  mov rdx, rsi
+  shr rdx, 32
+  mov eax, esi
+  mov ecx, edi
+  wrmsr
+  ret
+
+extern syscall_table
+global SyscallEntry
+SyscallEntry: ; void SyscallEntry(void);
+  push rbp
+  push rcx  ; original RIP 
+  push r11  ; original RFLAGS これらはsysretで呼び出し元に戻る際に使う
+
+  mov rcx, r10
+  and eax, 0x7fffffff
+  mov rbp, rsp
+  and rsp, 0xfffffffffffffff0
+
+  call [syscall_table + 8 * eax]
+
+  mov rsp, rbp
+
+  pop r11
+  pop rcx
+  pop rbp
+  o64 sysret
+
 extern kernel_main_stack
 extern KernelMainNewStack
 
