@@ -106,5 +106,3 @@ namespace fat {
     return p - buf_uint8;
   }
 } // namespace fat
-
-

@@ -19,10 +19,10 @@ union SegmentDescriptor {
     uint64_t available : 1;
     uint64_t long_mode : 1;
     uint64_t default_operation_size : 1;
-    uint64_t granularity: 1;
+    uint64_t granularity : 1;
     uint64_t base_high : 8;
-  } __attribute((packed)) bits;
-} __attribute((packed));
+  } __attribute__((packed)) bits;
+} __attribute__((packed));
 
 void SetCodeSegment(SegmentDescriptor& desc,
                     DescriptorType type,

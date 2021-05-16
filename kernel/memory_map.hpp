@@ -56,4 +56,3 @@ inline bool IsAvailable(MemoryType memory_type) {
 
 const int kUEFIPageSize = 4096;
 #endif
-

@@ -12,6 +12,225 @@
 #include "asmfunc.h"
 #include <utility>
 
+namespace {
+  // コマンドライン引数の列を argv が指す場所に構築
+  WithError<int> MakeArgVector(char* command, char* first_arg, char** argv, int argv_len, char* argbuf, int argbuf_len) {
+    int argc = 0;
+    int argbuf_index = 0;
+
+    auto push_to_argv = [&](const char* s) {
+      if (argc >= argv_len || argbuf_index >= argbuf_len) {
+        return MAKE_ERROR(Error::kFull);
+      }
+      argv[argc] = &argbuf[argbuf_index];
+      ++argc;
+      strcpy(&argbuf[argbuf_index], s);
+      argbuf_index += strlen(s) + 1;
+      return MAKE_ERROR(Error::kSuccess);
+    };
+
+    if (auto err = push_to_argv(command)) {
+      return { argc, err };
+    }
+    if (!first_arg) {
+      return { argc, MAKE_ERROR(Error::kSuccess) };
+    }
+
+    char* p = first_arg;
+    while (true) {
+      while (isspace(p[0])) {
+        ++p;
+      }
+      if (p[0] == 0) {
+        break;
+      }
+
+      // 引数の最初の文字に到達
+      const char* arg = p;
+
+      // 引数の最後の文字まで進む
+      while (p[0] != 0 && !isspace(p[0])) {
+        ++p;
+      }
+      const bool is_end = p[0] == 0;
+
+      // 最後の文字の次を'\0'にすることで、arg は1つの引数を切り取った文字列になる
+      p[0] = 0;
+
+      if (auto err = push_to_argv(arg)) {
+        return { argc, err };
+      }
+      if (is_end) {
+        break;
+      }
+      ++p;
+    }
+
+    return { argc, MAKE_ERROR(Error::kSuccess) };
+  }
+
+  Elf64_Phdr* GetProgramHeader(Elf64_Ehdr* ehdr) {
+    return reinterpret_cast<Elf64_Phdr*>(
+        reinterpret_cast<uintptr_t>(ehdr) + ehdr->e_phoff);
+  }
+  
+  uintptr_t GetFirstLoadAddress(Elf64_Ehdr* ehdr) {
+    auto phdr = GetProgramHeader(ehdr);
+    for (int i = 0; i < ehdr->e_phnum; ++i) {
+      if (phdr[i].p_type != PT_LOAD) continue;
+      return phdr[i].p_vaddr;
+    }
+    return 0;
+  }
+
+  static_assert(kBytesPerFrame >= 4096);
+
+  WithError<PageMapEntry*> NewPageMap() {
+    auto frame = memory_manager->Allocate(1);
+    if (frame.error) {
+      return { nullptr, frame.error };
+    }
+
+    auto e = reinterpret_cast<PageMapEntry*>(frame.value.Frame());
+    memset(e, 0, sizeof(uint64_t) * 512);
+    return { e, MAKE_ERROR(Error::kSuccess) };
+  }
+
+  WithError<PageMapEntry*> SetNewPageMapIfNotPresent(PageMapEntry& entry) {
+    if (entry.bits.present) {
+      // 引数のエントリが既にどこかを指している場合は何もしない
+      return { entry.Pointer(), MAKE_ERROR(Error::kSuccess) };
+    }
+
+    auto [ child_map, err ] = NewPageMap();
+    if (err) {
+      return { nullptr, err };
+    }
+
+    entry.SetPointer(child_map);
+    entry.bits.present = 1;
+
+    return { child_map, MAKE_ERROR(Error::kSuccess) };
+  }
+
+  WithError<size_t> SetupPageMap(PageMapEntry* page_map, int page_map_level, LinearAddress4Level addr, size_t num_4kpages) {
+    while (num_4kpages > 0) {
+      const auto entry_index = addr.Part(page_map_level);
+
+      auto [ child_map, err ] = SetNewPageMapIfNotPresent(page_map[entry_index]);
+      if (err) {
+        return { num_4kpages, err };
+      }
+      page_map[entry_index].bits.writable = 1;
+      page_map[entry_index].bits.user = 1;  // アプリが動作する際のCPU動作権限レベルでも命令をフェッチできるようにする
+
+      if (page_map_level == 1) { // PT
+        --num_4kpages;
+      } else {
+        auto [ num_remain_pages, err ] = SetupPageMap(child_map, page_map_level - 1, addr, num_4kpages);
+        if (err) {
+          return { num_4kpages, err };
+        }
+        num_4kpages = num_remain_pages;
+      }
+      
+      if (entry_index == 511) {
+        // テーブルがいっぱいになった
+        break;
+      }
+
+      // 次のページを割り当てるエントリを指す仮想アドレスを求める
+      addr.SetPart(page_map_level, entry_index + 1);
+      for (int level = page_map_level - 1; level >= 1; --level) {
+        addr.SetPart(level, 0);
+      }
+    }
+    return { num_4kpages, MAKE_ERROR(Error::kSuccess) };
+  }
+
+  Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages) {
+    auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
+    return SetupPageMap(pml4_table, 4, addr, num_4kpages).error;
+  }
+
+  Error CopyLoadSegments(Elf64_Ehdr* ehdr) {
+    auto phdr = GetProgramHeader(ehdr);
+    for (int i = 0; i < ehdr->e_phnum; ++i) {
+      if (phdr[i].p_type != PT_LOAD) continue;
+
+      LinearAddress4Level dest_addr;
+      dest_addr.value = phdr[i].p_vaddr;
+      const auto num_4kpages = (phdr[i].p_memsz + 4095) / 4096;
+
+      // ページマップを設定
+      if (auto err = SetupPageMaps(dest_addr, num_4kpages)) {
+        return err;
+      }
+
+      // LOADセグメントをメモリにロード
+      const auto src = reinterpret_cast<uint8_t*>(ehdr) + phdr[i].p_offset;
+      const auto dst = reinterpret_cast<uint8_t*>(phdr[i].p_vaddr);
+      memcpy(dst, src, phdr[i].p_filesz);
+      memset(dst + phdr[i].p_filesz, 0, phdr[i].p_memsz - phdr[i].p_filesz);
+    }
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  Error LoadELF(Elf64_Ehdr* ehdr) {
+    // 実行可能でない場合、仮想アドレスがアプリ用ではない場合は弾く
+    if (ehdr->e_type != ET_EXEC) {
+      return MAKE_ERROR(Error::kInvalidFormat);
+    } 
+    const auto addr_first = GetFirstLoadAddress(ehdr);
+    if (addr_first < 0xffff'8000'0000'0000) {
+      return MAKE_ERROR(Error::kInvalidFormat);
+    }
+
+    if (auto err = CopyLoadSegments(ehdr)) {
+      return err;
+    }
+
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  // page_map以下の全ページテーブルエントリを再帰的に解放する
+  Error CleanPageMap(PageMapEntry* page_map, int page_map_level) {
+    for (int i = 0; i < 512; ++i) {
+      auto entry = page_map[i];
+      if (!entry.bits.present) {
+        continue;
+      }
+
+      if (page_map_level > 1) {
+        if (auto err = CleanPageMap(entry.Pointer(), page_map_level - 1)) {
+          return err;
+        }
+      }
+
+      const auto entry_addr = reinterpret_cast<uintptr_t>(entry.Pointer());
+      const FrameID map_frame{entry_addr / kBytesPerFrame};
+      if (auto err = memory_manager->Free(map_frame, 1)) {
+        return err;
+      }
+      page_map[i].data = 0;
+    }
+    return MAKE_ERROR(Error::kSuccess);
+  }
+
+  // アプリ終了時にページマップを破棄
+  Error CleanPageMaps(LinearAddress4Level addr) {
+    auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
+    auto pdp_table = pml4_table[addr.parts.pml4].Pointer();
+    pml4_table[addr.parts.pml4].data = 0;
+    if (auto err = CleanPageMap(pdp_table, 3)) {
+      return err;
+    }
+    const auto pdp_addr = reinterpret_cast<uintptr_t>(pdp_table);
+    const FrameID pdp_frame{pdp_addr / kBytesPerFrame};
+    return memory_manager->Free(pdp_frame, 1);
+  }
+}
+
 Terminal::Terminal() {
   window_ = std::make_shared<ToplevelWindow>(
     kColumns * 8 + 8 + ToplevelWindow::kMarginX,
@@ -162,8 +381,7 @@ void Terminal::ExecuteLine() {
   }
   else if (strcmp(command, "ls") == 0) {
     auto root_dir_entries = fat::GetSectorByCluster<fat::DirectoryEntry>(fat::boot_volume_image->root_cluster);
-    auto entries_per_cluster =
-      fat::boot_volume_image->bytes_per_sector / sizeof(fat::DirectoryEntry) * fat::boot_volume_image->sectors_per_cluster;
+    auto entries_per_cluster = fat::bytes_per_cluster / sizeof(fat::DirectoryEntry);
     char base[9], ext[4];
     char s[64];
     for (int i = 0; i < entries_per_cluster; ++i) {
@@ -217,8 +435,6 @@ void Terminal::ExecuteLine() {
       Print(command);
       Print("\n");
     } else if (auto err = ExecuteFile(*file_entry, command, first_arg)) {
-      Print("failed to exec file: ");
-
       char s[64];
       sprintf(s, "failed to exec file: %s:%d %s\n", err.File(), err.Line(), err.Name());
       Print(s);
@@ -226,194 +442,6 @@ void Terminal::ExecuteLine() {
   }
 }
 
-namespace {
-  std::vector<char*>MakeArgVector(char* command, char* first_arg) {
-    std::vector<char*> argv;
-    argv.push_back(command);
-
-    char* p = first_arg;
-    while (true) {
-      while (isspace(p[0])) {
-        ++p;
-      }
-      if (p[0] == 0) {
-        break;
-      }
-      argv.push_back(p);
-
-      while (p[0] != 0 && !isspace(p[0])) {
-        ++p;
-      }
-      if (p[0] == 0) {
-        break;
-      }
-      p[0] = 0;
-      ++p;
-    }
-
-    return argv;
-  }
-
-  Elf64_Phdr* GetProgramHeader(Elf64_Ehdr* ehdr) {
-    return reinterpret_cast<Elf64_Phdr*>(
-        reinterpret_cast<uintptr_t>(ehdr) + ehdr->e_phoff);
-  }
-  
-  uintptr_t GetFirstLoadAddress(Elf64_Ehdr* ehdr) {
-    auto phdr = GetProgramHeader(ehdr);
-    for (int i = 0; i < ehdr->e_phnum; ++i) {
-      if (phdr[i].p_type != PT_LOAD) continue;
-      return phdr[i].p_vaddr;
-    }
-    return 0;
-  }
-
-  static_assert(kBytesPerFrame >= 4096);
-
-  WithError<PageMapEntry*> NewPageMap() {
-    auto frame = memory_manager->Allocate(1);
-    if (frame.error) {
-      return { nullptr, frame.error };
-    }
-
-    auto e = reinterpret_cast<PageMapEntry*>(frame.value.Frame());
-    memset(e, 0, sizeof(uint64_t) * 512);
-    return { e, MAKE_ERROR(Error::kSuccess) };
-  }
-
-  WithError<PageMapEntry*> SetNewPageMapIfNotPresent(PageMapEntry& entry) {
-    if (entry.bits.present) {
-      // 引数のエントリが既にどこかを指している場合は何もしない
-      return { entry.Pointer(), MAKE_ERROR(Error::kSuccess) };
-    }
-
-    auto [ child_map, err ] = NewPageMap();
-    if (err) {
-      return { nullptr, err };
-    }
-
-    entry.SetPointer(child_map);
-    entry.bits.present = 1;
-
-    return { child_map, MAKE_ERROR(Error::kSuccess) };
-  }
-
-  WithError<size_t> SetupPageMap(PageMapEntry* page_map, int page_map_level, LinearAddress4Level addr, size_t num_4kpages) {
-    while (num_4kpages > 0) {
-      const auto entry_index = addr.Part(page_map_level);
-
-      auto [ child_map, err ] = SetNewPageMapIfNotPresent(page_map[entry_index]);
-      if (err) {
-        return { num_4kpages, err };
-      }
-      page_map[entry_index].bits.writable = 1;
-
-      if (page_map_level == 1) { // PT
-        --num_4kpages;
-      } else {
-        auto [ num_remain_pages, err ] = SetupPageMap(child_map, page_map_level - 1, addr, num_4kpages);
-        if (err) {
-          return { num_4kpages, err };
-        }
-        num_4kpages = num_remain_pages;
-      }
-      
-      if (entry_index == 511) {
-        // テーブルがいっぱいになった
-        break;
-      }
-
-      // 次のページを割り当てるエントリを指す仮想アドレスを求める
-      addr.SetPart(page_map_level, entry_index + 1);
-      for (int level = page_map_level - 1; level >= 1; --level) {
-        addr.SetPart(level, 0);
-      }
-    }
-    return { num_4kpages, MAKE_ERROR(Error::kSuccess) };
-  }
-
-  Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages) {
-    auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
-    return SetupPageMap(pml4_table, 4, addr, num_4kpages).error;
-  }
-
-  Error CopyLoadSegments(Elf64_Ehdr* ehdr) {
-    auto phdr = GetProgramHeader(ehdr);
-    for (int i = 0; i < ehdr->e_phnum; ++i) {
-      if (phdr[i].p_type != PT_LOAD) continue;
-
-      LinearAddress4Level dest_addr;
-      dest_addr.value = phdr[i].p_vaddr;
-      const auto num_4kpages = (phdr[i].p_memsz + 4095) / 4096;
-
-      // ページマップを設定
-      if (auto err = SetupPageMaps(dest_addr, num_4kpages)) {
-        return err;
-      }
-
-      // LOADセグメントをメモリにロード
-      const auto src = reinterpret_cast<uint8_t*>(ehdr) + phdr[i].p_offset;
-      const auto dst = reinterpret_cast<uint8_t*>(phdr[i].p_vaddr);
-      memcpy(dst, src, phdr[i].p_filesz);
-      memset(dst + phdr[i].p_filesz, 0, phdr[i].p_memsz - phdr[i].p_filesz);
-    }
-    return MAKE_ERROR(Error::kSuccess);
-  }
-
-  Error LoadELF(Elf64_Ehdr* ehdr) {
-    // 実行可能でない場合、仮想アドレスがアプリ用ではない場合は弾く
-    if (ehdr->e_type != ET_EXEC) {
-      return MAKE_ERROR(Error::kInvalidFormat);
-    } 
-    const auto addr_first = GetFirstLoadAddress(ehdr);
-    if (addr_first < 0xffff'8000'0000'0000) {
-      return MAKE_ERROR(Error::kInvalidFormat);
-    }
-
-    if (auto err = CopyLoadSegments(ehdr)) {
-      return err;
-    }
-
-    return MAKE_ERROR(Error::kSuccess);
-  }
-
-  // page_map以下の全ページテーブルエントリを再帰的に解放する
-  Error CleanPageMap(PageMapEntry* page_map, int page_map_level) {
-    for (int i = 0; i < 512; ++i) {
-      auto entry = page_map[i];
-      if (!entry.bits.present) {
-        continue;
-      }
-
-      if (page_map_level > 1) {
-        if (auto err = CleanPageMap(entry.Pointer(), page_map_level - 1)) {
-          return err;
-        }
-      }
-
-      const auto entry_addr = reinterpret_cast<uintptr_t>(entry.Pointer());
-      const FrameID map_frame{entry_addr / kBytesPerFrame};
-      if (auto err = memory_manager->Free(map_frame, 1)) {
-        return err;
-      }
-      page_map[i].data = 0;
-    }
-    return MAKE_ERROR(Error::kSuccess);
-  }
-
-  // アプリ終了時にページマップを破棄
-  Error CleanPageMaps(LinearAddress4Level addr) {
-    auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
-    auto pdp_table = pml4_table[addr.parts.pml4].Pointer();
-    pml4_table[addr.parts.pml4].data = 0;
-    if (auto err = CleanPageMap(pdp_table, 3)) {
-      return err;
-    }
-    const auto pdp_addr = reinterpret_cast<uintptr_t>(pdp_table);
-    const FrameID pdp_frame{pdp_addr / kBytesPerFrame};
-    return memory_manager->Free(pdp_frame, 1);
-  }
-}
 
 Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command, char* first_arg)  {
   std::vector<uint8_t> file_buf(file_entry.file_size);
@@ -428,19 +456,37 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
     return MAKE_ERROR(Error::kSuccess);
   }
 
-  auto argv = MakeArgVector(command, first_arg);
   if (auto err = LoadELF(elf_header)) {
     return err;
   }
 
-  auto entry_addr = elf_header->e_entry;
-  using Func = int (int, char**);
-  auto f = reinterpret_cast<Func*>(entry_addr);
-  auto ret = f(argv.size(), &argv[0]);
+  // コマンドライン引数の配列をアプリからアクセスできる領域に構築
+  LinearAddress4Level args_frame_addr{0xffff'ffff'ffff'f000};
+  if (auto err = SetupPageMaps(args_frame_addr, 1)) {
+    return err;
+  }
+  auto argv = reinterpret_cast<char**>(args_frame_addr.value);
+  int argv_len = 32;
+  auto argbuf = reinterpret_cast<char*>(args_frame_addr.value + sizeof(char**) * argv_len);
+  int argbuf_len = 4096 - sizeof(char**) * argv_len;
+  auto argc = MakeArgVector(command, first_arg, argv, argv_len, argbuf, argbuf_len);
+  if (argc.error) {
+    return argc.error;
+  }
+  Log(kWarn, "argc: %d\n", argc.value);
+  for (int i = 0; i < argc.value; i++) {
+    Log(kWarn, "argv[%d]: %s\n ", i, argv[i]);
+  }
 
-  char s[64];
-  sprintf(s, "app exited. ret = %d\n", ret);
-  Print(s);
+  // アプリが利用できるスタック領域を用意
+  LinearAddress4Level stack_frame_addr{0xffff'ffff'ffff'e000};
+  if (auto err = SetupPageMaps(stack_frame_addr, 1)) {
+    return err;
+  }
+
+  auto entry_addr = elf_header->e_entry;
+  // CS = gdt[3], SS = gdt[4]
+  CallApp(argc.value,  argv, 3 << 3 | 3, 4 << 3 | 3, entry_addr, stack_frame_addr.value + 4096 - 8); 
 
   const auto addr_first = GetFirstLoadAddress(elf_header);
   if (auto err = CleanPageMaps(LinearAddress4Level{addr_first})) {

@@ -354,7 +354,7 @@ EFI_STATUS EFIAPI UefiMain(
   UINT64 kernel_first_addr, kernel_last_addr;
   CalcLoadAddressRange(kernel_ehdr, &kernel_first_addr, &kernel_last_addr);
 
-  UINTN num_pages = (kernel_last_addr - kernel_first_addr + 0xfff) / 0x1000;\
+  UINTN num_pages = (kernel_last_addr - kernel_first_addr + 0xfff) / 0x1000;
   Print(L"#pages: %d", num_pages);
 
   status = gBS->AllocatePages(AllocateAddress, EfiLoaderData,

@@ -157,6 +157,17 @@ SwitchContext:
 
   o64 iret
   
+global CallApp
+CallApp:  ; void CallApp(int argc, char** argv, uint16_t cs, uint16_t ss, uint64_t rip, uint64_t rsp);
+	push rbp
+	mov rbp, rsp
+	push rcx  ; SS 低い権限のコードセグメントへのretfの場合は、SSとRSPもスタックを介して渡せる
+	push r9   ; RSP
+	push rdx  ; CS
+	push r8   ; RIP
+	o64 retf
+
+
 extern kernel_main_stack
 extern KernelMainNewStack
 

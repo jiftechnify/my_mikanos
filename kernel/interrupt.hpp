@@ -58,7 +58,6 @@ class InterruptVector {
   };
 };
 
-// #@@range_begin(frame_struct)
 struct InterruptFrame {
   uint64_t rip;
   uint64_t cs;
@@ -66,9 +65,7 @@ struct InterruptFrame {
   uint64_t rsp;
   uint64_t ss;
 };
-// #@@range_end(frame_struct)
 
 void NotifyEndOfInterrupt();
 
 void InitializeInterrupt();
-
