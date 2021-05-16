@@ -74,12 +74,12 @@ TimerManager* timer_manager;
 unsigned long lapic_timer_freq;
 
 // Local APIC タイマーの周期ごとに割り込みハンドラから呼び出される処理
-void LAPICTimerOnInterrupt() {
+extern "C" void LAPICTimerOnInterrupt(const TaskContext& ctx_stack) {
   const bool task_timer_timeout = timer_manager->Tick();
   NotifyEndOfInterrupt(); // 先にタスクを切り替えてしまうと、これが呼び出されなくなってしまう
 
   if (task_timer_timeout) {
-    task_manager->SwitchTask();
+    task_manager->SwitchTask(ctx_stack);
   }
 }
 

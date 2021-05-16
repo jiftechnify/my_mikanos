@@ -67,7 +67,7 @@ class TaskManager {
 
     TaskManager();
     Task& NewTask();
-    void SwitchTask(bool current_sleep = false);
+    void SwitchTask(const TaskContext& current_ctx);
     Task& CurrentTask();
     
     void Sleep(Task* task);
@@ -85,6 +85,7 @@ class TaskManager {
     bool level_changed_{false};
 
     void ChangeLevelRunning(Task* task, int level);
+    Task* RotateCurrentRunQueue(bool current_sleep);
 };
 
 extern TaskManager* task_manager;

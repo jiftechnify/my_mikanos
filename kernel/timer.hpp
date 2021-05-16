@@ -4,6 +4,7 @@
 #include <queue>
 #include <vector>
 #include "message.hpp"
+#include "task.hpp"
 
 void StartLAPICTimer();
 uint32_t LAPICTimerElapsed();
@@ -43,7 +44,6 @@ extern unsigned long lapic_timer_freq; // 1秒あたりのLocal APIC タイマ�
 const int kTimerFreq = 100;
 
 void InitializeLAPICTimer();
-void LAPICTimerOnInterrupt();
 
 // タスク切り替えのタイミングを決めるタイマ
 const int kTaskTimerPeriod = static_cast<int>(kTimerFreq * 0.02);
