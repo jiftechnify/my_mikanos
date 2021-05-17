@@ -160,13 +160,20 @@ RestoreContext: ; void RestoreContext(void* task_context);
   o64 iret
   
 global CallApp
-CallApp:  ; void CallApp(int argc, char** argv, uint16_t cs, uint16_t ss, uint64_t rip, uint64_t rsp);
-	push rbp
-	mov rbp, rsp
-	push rcx  ; SS 低い権限のコードセグメントへのretfの場合は、SSとRSPもスタックを介して渡せる
-	push r9   ; RSP
+CallApp:  ; int CallApp(int argc, char** argv, uint16_t ss, uint64_t rip, uint64_t rsp, int64_t* os_stack_ptr);
+  push rbx
+  push rbp
+  push r12
+  push r13
+  push r14
+  push r15
+  mov [r9], rsp ; OS用のスタックポインタを保存(SyscallEntryの .exit で復帰)
+
+	push rdx  ; SS 低い権限のコードセグメントへのretfの場合は、SSとRSPもスタックを介して渡せる
+	push r8   ; RSP
+  add rdx, 8
 	push rdx  ; CS
-	push r8   ; RIP
+	push rcx  ; RIP
 	o64 retf
 
 global LoadTR
@@ -255,6 +262,7 @@ SyscallEntry: ; void SyscallEntry(void);
   push rbp
   push rcx  ; original RIP 
   push r11  ; original RFLAGS これらはsysretで呼び出し元に戻る際に使う
+  push rax  ; システムコール番号を保存
 
   mov rcx, r10
   and eax, 0x7fffffff
@@ -265,10 +273,27 @@ SyscallEntry: ; void SyscallEntry(void);
 
   mov rsp, rbp
 
+  pop rsi ; システムコール番号を復帰
+  cmp esi, 0x80000002 ; 終了システムコールか?
+  je  .exit
+
   pop r11
   pop rcx
   pop rbp
   o64 sysret
+
+.exit
+  mov rsp, rax  ; スタックをOS用の領域に切り替え
+  mov eax, edx  
+
+  pop r15
+  pop r14
+  pop r13
+  pop r12
+  pop rbp
+  pop rbx
+
+  ret ; CallApp の次の行に飛ぶ
 
 extern kernel_main_stack
 extern KernelMainNewStack

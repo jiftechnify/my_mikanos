@@ -64,14 +64,24 @@ SYSCALL(PutString) {
   return { 0, EBADF };
 }
 
+// アプリを終了する
+// arg1: 終了コード
+SYSCALL(Exit) {
+  __asm__("cli");
+  auto& task = task_manager->CurrentTask();
+  __asm__("sti");
+  return { task.OSStackPointer(), static_cast<int>(arg1) }; // RAX: OS用スタックポインタ, RDX: 終了コード
+}
+
 #undef SYSCALL
 
 } // namespace syscall
 
 using SyscallFuncType = syscall::Result (uint64_t, uint64_t, uint64_t,
                                  uint64_t, uint64_t, uint64_t);
-extern "C" std::array<SyscallFuncType*, 2> syscall_table{
+extern "C" std::array<SyscallFuncType*, 3> syscall_table{
   /* 0x00 */ syscall::LogString,
   /* 0x01 */ syscall::PutString,
+  /* 0x02 */ syscall::Exit,
 };
 

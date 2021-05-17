@@ -6,7 +6,7 @@
 /**
  * Task
  */
-Task::Task(uint64_t id) : id_{id} {
+Task::Task(uint64_t id) : id_{id}, msgs_{} {
 }
 
 Task& Task::InitContext(TaskFunc* f, int64_t data) {
@@ -47,6 +47,10 @@ Task& Task::Wakeup() {
 
 TaskContext& Task::Context() {
   return context_;
+}
+
+uint64_t& Task::OSStackPointer() {
+  return os_stack_ptr_;
 }
 
 void Task::SendMessage(const Message& msg) {
