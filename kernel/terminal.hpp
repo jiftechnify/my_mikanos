@@ -1,13 +1,12 @@
 #pragma once
 
-#include <memory>
-#include <queue>
+#include <deque>
 #include <map>
 #include <optional>
-#include "graphics.hpp"
 #include "window.hpp"
+#include "task.hpp"
+#include "layer.hpp"
 #include "fat.hpp"
-#include "error.hpp"
 
 class Terminal {
   public:

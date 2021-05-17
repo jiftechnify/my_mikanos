@@ -1,16 +1,16 @@
 #include "terminal.hpp"
 
-#include "layer.hpp"
-#include "task.hpp"
-#include "message.hpp"
-#include "logger.hpp"
+#include <cstring>
+#include <limits>
+
 #include "font.hpp"
+#include "layer.hpp"
 #include "pci.hpp"
-#include "elf.hpp"
-#include "paging.hpp"
-#include "memory_manager.hpp"
 #include "asmfunc.h"
-#include <utility>
+#include "elf.hpp"
+#include "memory_manager.hpp"
+#include "paging.hpp"
+#include "logger.hpp"
 
 namespace {
   // コマンドライン引数の列を argv が指す場所に構築
