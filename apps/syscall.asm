@@ -21,3 +21,17 @@ SyscallExit:
   mov r10, rcx
   syscall
   ret
+
+global SyscallOpenWindow
+SyscallOpenWindow:
+  mov eax, 0x80000003
+  mov r10, rcx
+  syscall
+  ret
+
+global SyscallWinWriteString
+SyscallWinWriteString:
+  mov eax, 0x80000004
+  mov r10, rcx
+  syscall
+  ret
