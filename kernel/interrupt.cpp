@@ -101,7 +101,7 @@ namespace {
 void InitializeInterrupt() {
   auto set_idt_entry = [](int irq, auto handler) {
     SetIDTEntry(idt[irq],
-                MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+                MakeIDTAttr(DescriptorType::kInterruptGate, 0, true, kISTForTimer),
                 reinterpret_cast<uint64_t>(handler),
                 kKernelCS);
   };
