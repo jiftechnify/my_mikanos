@@ -1,17 +1,27 @@
+#ifdef __cplusplus
 #include <cstdint>
 #include <cstddef>
-#include "../kernel/logger.hpp"
 
 extern "C" {
-  struct SyscallResult {
-    uint64_t value;
-    int error;
-  };
+#else
+#include <stdint.h>
+#include <stddef.h>
+#endif
 
-  SyscallResult SyscallLogString(LogLevel level, const char* message);
-  SyscallResult SyscallPutString(int fd, const char* s, size_t len);
-  SyscallResult SyscallExit(int exit_code);
-  SyscallResult SyscallOpenWindow(int w, int h, int x, int y, const char* title);
-  SyscallResult SyscallWinWriteString(unsigned int layer_id, int x, int y, uint32_t color, const char* s);
+#include "../kernel/logger.hpp"
+
+struct SyscallResult {
+  uint64_t value;
+  int error;
+};
+
+struct SyscallResult SyscallLogString(enum LogLevel level, const char* message);
+struct SyscallResult SyscallPutString(int fd, const char* s, size_t len);
+void SyscallExit(int exit_code);
+struct SyscallResult SyscallOpenWindow(int w, int h, int x, int y, const char* title);
+struct SyscallResult SyscallWinWriteString(unsigned int layer_id, int x, int y, uint32_t color, const char* s);
+
+#ifdef __cplusplus
 }
+#endif
 
