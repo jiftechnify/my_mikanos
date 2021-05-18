@@ -70,3 +70,10 @@ SyscallCloseWindow:
   mov r10, rcx
   syscall
   ret
+
+global SyscallReadEvent
+SyscallReadEvent:
+  mov eax, 0x8000000a
+  mov r10, rcx
+  syscall
+  ret

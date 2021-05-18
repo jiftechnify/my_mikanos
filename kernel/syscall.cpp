@@ -16,6 +16,8 @@
 #include "layer.hpp"
 #include "font.hpp"
 #include "timer.hpp"
+#include "app_event.hpp"
+#include "keyboard.hpp"
 
 void InitializeSyscall() {
   WriteMSR(kIA32_EFER, 0x0501u);  // syscall有効化
@@ -97,6 +99,9 @@ SYSCALL(OpenWindow) {
     .Move({x, y})
     .ID();
   active_layer->Activate(layer_id);
+
+  const auto task_id = task_manager->CurrentTask().ID();
+  layer_task_map->insert(std::make_pair(layer_id, task_id));
   __asm__("sti");
 
   return { layer_id, 0 };
@@ -243,9 +248,54 @@ SYSCALL(CloseWindow) {
   active_layer->Activate(0);
   layer_manager->RemoveLayer(layer_id);
   layer_manager->Draw({layer_pos, win_size});
+  layer_task_map->erase(layer_id);
   __asm__("sti");
 
   return { 0, 0 };
+}
+
+// アプリに送信されたイベントを取得
+// arg1: イベントデータ配列のポインタ
+// arg2: イベントデータ配列の長さ
+SYSCALL(ReadEvent) {
+  if (arg1 < 0x8000'0000'0000'0000) {
+    return { 0, EFAULT };
+  }
+  const auto app_events = reinterpret_cast<AppEvent*>(arg1);
+  const size_t len = arg2;
+
+  __asm__("cli");
+  auto& task = task_manager->CurrentTask();
+  __asm__("sti");
+  size_t i = 0;
+
+  while (i < len) {
+    __asm__("cli");
+    auto msg = task.ReceiveMessage();
+    if (!msg && i == 0) {
+      // メッセージが届いていなければアプリをスリープさせる
+      task.Sleep();
+      continue;
+    }
+    __asm__("sti");
+
+    if (!msg) {
+      break;
+    }
+
+    switch (msg->type) {
+    case Message::kKeyPush:
+      if (msg->arg.keyboard.keycode == 20 /* Q key */ &&
+          msg->arg.keyboard.modifier & (kLControlBitMask | kRControlBitMask)) {
+        app_events[i].type = AppEvent::kQuit;
+        ++i;
+      }
+      break;
+    default:
+      Log(kInfo, "uncaught event type: %u\n", msg->type);
+    }
+  }
+  return { i, 0 };
 }
 
 #undef SYSCALL
@@ -254,7 +304,7 @@ SYSCALL(CloseWindow) {
 
 using SyscallFuncType = syscall::Result (uint64_t, uint64_t, uint64_t,
                                  uint64_t, uint64_t, uint64_t);
-extern "C" std::array<SyscallFuncType*, 10> syscall_table{
+extern "C" std::array<SyscallFuncType*, 11> syscall_table{
   /* 0x00 */ syscall::LogString,
   /* 0x01 */ syscall::PutString,
   /* 0x02 */ syscall::Exit,
@@ -265,5 +315,6 @@ extern "C" std::array<SyscallFuncType*, 10> syscall_table{
   /* 0x07 */ syscall::WinRedraw,
   /* 0x08 */ syscall::WinDrawLine,
   /* 0x09 */ syscall::CloseWindow,
+  /* 0x0a */ syscall::ReadEvent,
 };
 
