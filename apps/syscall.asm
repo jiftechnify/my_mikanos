@@ -35,3 +35,10 @@ SyscallWinWriteString:
   mov r10, rcx
   syscall
   ret
+
+global SyscallWinFillRectangle
+SyscallWinFillRectangle:
+  mov eax, 0x80000005
+  mov r10, rcx
+  syscall
+  ret
