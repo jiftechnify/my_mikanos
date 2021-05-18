@@ -61,7 +61,8 @@ class LayerManager {
 
     // 新しいレイヤを生成し、参照を返す
     Layer& NewLayer();
-
+    // 指定したレイヤを削除
+    void RemoveLayer(unsigned int id);
 
     // 画面全体を再描画
     void DrawAll() const;

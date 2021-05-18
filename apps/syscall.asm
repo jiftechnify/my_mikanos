@@ -64,3 +64,9 @@ SyscallWinDrawLine:
   syscall
   ret
 
+global SyscallCloseWindow
+SyscallCloseWindow:
+  mov eax, 0x80000009
+  mov r10, rcx
+  syscall
+  ret
