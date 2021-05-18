@@ -42,3 +42,18 @@ SyscallWinFillRectangle:
   mov r10, rcx
   syscall
   ret
+
+global SyscallGetCurrentTick
+SyscallGetCurrentTick:
+  mov eax, 0x80000006
+  mov r10, rcx
+  syscall
+  ret
+
+global SyscallWinRedraw
+SyscallWinRedraw:
+  mov eax, 0x80000007
+  mov r10, rcx
+  syscall
+  ret
+
