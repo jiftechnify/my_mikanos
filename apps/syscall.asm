@@ -57,3 +57,10 @@ SyscallWinRedraw:
   syscall
   ret
 
+global SyscallWinDrawLine
+SyscallWinDrawLine:
+  mov eax, 0x80000008
+  mov r10, rcx
+  syscall
+  ret
+
