@@ -26,15 +26,15 @@ void StopLAPICTimer() {
 /**
  * Timer
  */
-Timer::Timer(unsigned long timeout, int value)
-    : timeout_{timeout}, value_{value} {
+Timer::Timer(unsigned long timeout, int value, uint64_t task_id)
+    : timeout_{timeout}, value_{value}, task_id_{task_id} {
 }
 
 /**
  * TimerManager
  */
 TimerManager::TimerManager() {
-  timers_.push(Timer{std::numeric_limits<unsigned long>::max(), -1});
+  timers_.push(Timer{std::numeric_limits<unsigned long>::max(), -1, 1});
 }
 
 void TimerManager::AddTimer(const Timer& timer) {
@@ -43,7 +43,7 @@ void TimerManager::AddTimer(const Timer& timer) {
 
 bool TimerManager::Tick() {
   ++tick_;
-  // timeoutを迎えたTimerがあれば、メッセージを送信
+  // timeoutを迎えたTimerがあれば、それを生成したタスクにメッセージを送信
   bool task_timer_timeout = false;
   while (true) {
     const auto& t = timers_.top();
@@ -55,14 +55,14 @@ bool TimerManager::Tick() {
       // タスク切り替えタイマがタイムアウトした場合
       task_timer_timeout = true;
       timers_.pop();
-      timers_.push(Timer{tick_ + kTaskTimerPeriod, kTaskTimerValue});
+      timers_.push(Timer{tick_ + kTaskTimerPeriod, kTaskTimerValue, 1});
       continue;
     }
 
     Message m{Message::kTimerTimeout};
     m.arg.timer.timeout = t.Timeout();
     m.arg.timer.value = t.Value();
-    task_manager->SendMessage(1, m);
+    task_manager->SendMessage(t.TaskID(), m);
 
     timers_.pop();
   }

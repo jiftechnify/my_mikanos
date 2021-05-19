@@ -77,3 +77,10 @@ SyscallReadEvent:
   mov r10, rcx
   syscall
   ret
+
+global SyscallCreateTimer
+SyscallCreateTimer:
+  mov eax, 0x8000000b
+  mov r10, rcx
+  syscall
+  ret

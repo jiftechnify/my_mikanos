@@ -33,6 +33,12 @@ struct SyscallResult SyscallCloseWindow(unsigned int layer_id);
 
 struct SyscallResult SyscallReadEvent(struct AppEvent* events, size_t len);
 
+// タイマタイプの定数
+#define TIMER_ONESHOT_REL 1
+#define TIMER_ONESHOT_ABS 0
+
+struct SyscallResult SyscallCreateTimer(unsigned int type, int timer_value, unsigned long timeout_ms);
+
 #ifdef __cplusplus
 }
 #endif
