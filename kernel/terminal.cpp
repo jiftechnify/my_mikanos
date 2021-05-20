@@ -11,6 +11,7 @@
 #include "memory_manager.hpp"
 #include "paging.hpp"
 #include "logger.hpp"
+#include "timer.hpp"
 
 namespace {
   // コマンドライン引数の列を argv が指す場所に構築
@@ -576,6 +577,13 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
   (*terminals)[task_id] = terminal;
   __asm__("sti");
 
+  auto add_blink_timer = [task_id](unsigned long t) {
+    timer_manager->AddTimer(Timer{t + static_cast<int>(kTimerFreq * 0.5), 1, task_id});
+  };
+  add_blink_timer(timer_manager->CurrentTick());
+
+  bool window_isactive = false;
+
   while (true) {
     __asm__("cli");
     auto msg = task.ReceiveMessage();
@@ -588,7 +596,8 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
 
     switch (msg->type) {
     case Message::kTimerTimeout:
-      {
+      add_blink_timer(msg->arg.timer.timeout);
+      if (window_isactive) {
         const auto area = terminal->BlinkCursor();
         Message msg = MakeLayerMessage(task_id, terminal->LayerID(), LayerOperation::DrawArea, area);
         __asm__("cli");
@@ -606,6 +615,10 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
           __asm__("sti");
         }
       }
+    case Message::kWindowActive:
+      Log(kWarn, "window active: %d\n", msg->arg.window_active.activate);
+      window_isactive = msg->arg.window_active.activate;
+      break;
     default:
       break;
     }

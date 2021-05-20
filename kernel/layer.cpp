@@ -3,6 +3,7 @@
 #include <algorithm>
 #include "console.hpp"
 #include "logger.hpp"
+#include "task.hpp"
 
 Layer::Layer(unsigned int id) : id_{id} {
 }
@@ -218,6 +219,20 @@ int LayerManager::GetHeight(unsigned int id) {
   return -1;
 }
 
+namespace{
+  FrameBuffer* screen;
+
+  Error SendWindowActiveMessage(unsigned int layer_id, int activate) {
+    auto task_it = layer_task_map->find(layer_id);
+    if (task_it == layer_task_map->end()){
+      return MAKE_ERROR(Error::kNoSuchTask);
+    }
+    Message msg{Message::kWindowActive};
+    msg.arg.window_active.activate = activate;
+    return task_manager->SendMessage(task_it->second, msg);
+  }
+}
+
 /**
  * ActiveLayer
  */
@@ -238,6 +253,7 @@ void ActiveLayer::Activate(unsigned int layer_id) {
     Layer* layer = manager_.FindLayer(active_layer_id_);
     layer->GetWindow()->Deactivate();
     manager_.Draw(active_layer_id_);
+    SendWindowActiveMessage(active_layer_id_, 0);
   }
 
   // 新しいアクティブレイヤを最前面に移動
@@ -247,12 +263,8 @@ void ActiveLayer::Activate(unsigned int layer_id) {
     layer->GetWindow()->Activate();
     manager_.UpDown(active_layer_id_, manager_.GetHeight(mouse_layer_id_) - 1);
     manager_.Draw(active_layer_id_);
+    SendWindowActiveMessage(active_layer_id_, 1);
   }
-}
-
-
-namespace{
-  FrameBuffer* screen;
 }
 
 LayerManager* layer_manager;
