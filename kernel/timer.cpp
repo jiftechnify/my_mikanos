@@ -34,7 +34,7 @@ Timer::Timer(unsigned long timeout, int value, uint64_t task_id)
  * TimerManager
  */
 TimerManager::TimerManager() {
-  timers_.push(Timer{std::numeric_limits<unsigned long>::max(), -1, 1});
+  timers_.push(Timer{std::numeric_limits<unsigned long>::max(), 0, 0});
 }
 
 void TimerManager::AddTimer(const Timer& timer) {

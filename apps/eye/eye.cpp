@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include "../syscall.h"
+#include "../../kernel/logger.hpp"
 
 static const int kCanvasSize = 100, kEyeSize = 10;
 

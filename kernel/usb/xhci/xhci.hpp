@@ -69,5 +69,3 @@ namespace usb::xhci {
   void Initialize();
   void ProcessEvents();
 }
-
-

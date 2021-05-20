@@ -35,7 +35,9 @@ extern "C" void main(int argc, char** argv) {
       auto& arg = events[0].arg.mouse_button;
       if (arg.button == 0) {
         press = arg.press;
-        SyscallWinFillRectangle(layer_id, arg.x, arg.y, 1, 1, 0x000000);
+        if (IsInside(arg.x, arg.y)) {
+          SyscallWinFillRectangle(layer_id, arg.x, arg.y, 1, 1, 0x000000);
+        }
       }
     } else {
       printf("unknown event: type = %d\n", events[0].type);
