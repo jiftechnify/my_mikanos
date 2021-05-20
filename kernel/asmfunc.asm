@@ -312,6 +312,21 @@ SyscallEntry: ; void SyscallEntry(void);
 
   ret ; CallApp の次の行に飛ぶ
 
+global ExitApp  ; void ExitApp(uint64_t rsp, int32_t ret_val);
+ExitApp:
+  mov rsp, rdi  ; スタックをOS用の領域に切り替え
+  mov eax, esi  
+
+  pop r15
+  pop r14
+  pop r13
+  pop r12
+  pop rbp
+  pop rbx
+
+  ret ; CallApp の次の行に飛ぶ
+
+
 extern kernel_main_stack
 extern KernelMainNewStack
 

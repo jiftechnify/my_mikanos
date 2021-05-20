@@ -512,11 +512,7 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
 
   auto elf_header = reinterpret_cast<Elf64_Ehdr*>(&file_buf[0]);
   if (memcmp(elf_header->e_ident, "\x7f" "ELF", 4) != 0) {  // ELFの先頭4バイトは '0x7f' 'E' 'L' 'F'。 C++では文字列リテラルを連続で書くと連結される
-    // ELFでない場合
-    using Func = void ();
-    auto f = reinterpret_cast<Func*>(&file_buf[0]);
-    f();
-    return MAKE_ERROR(Error::kSuccess);
+    return MAKE_ERROR(Error::kInvalidFile);
   }
 
   __asm__("cli");
