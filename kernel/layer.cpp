@@ -261,6 +261,7 @@ void ActiveLayer::Activate(unsigned int layer_id) {
   if (active_layer_id_ > 0) {
     Layer* layer = manager_.FindLayer(active_layer_id_);
     layer->GetWindow()->Activate();
+    manager_.UpDown(active_layer_id_, 0);
     manager_.UpDown(active_layer_id_, manager_.GetHeight(mouse_layer_id_) - 1);
     manager_.Draw(active_layer_id_);
     SendWindowActiveMessage(active_layer_id_, 1);

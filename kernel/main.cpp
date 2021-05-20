@@ -176,16 +176,15 @@ extern "C" void KernelMainNewStack(
 
   InitializeTask();
   Task& main_task = task_manager->CurrentTask();
-
   terminals = new std::map<uint64_t, Terminal*>;
-  const uint64_t task_terminal_id = task_manager->NewTask()
-    .InitContext(TaskTerminal, 0)
-    .Wakeup()
-    .ID();
 
   usb::xhci::Initialize();
   InitializeKeyboard();
   InitializeMouse();
+
+  task_manager->NewTask()
+    .InitContext(TaskTerminal, 0)
+    .Wakeup();
 
   char str[128];
 

@@ -646,6 +646,7 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
           __asm__("sti");
         }
       }
+      break;
     case Message::kWindowActive:
       Log(kWarn, "window active: %d\n", msg->arg.window_active.activate);
       window_isactive = msg->arg.window_active.activate;
