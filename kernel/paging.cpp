@@ -31,7 +31,7 @@ void InitializePaging() {
   SetupIdentityPageTable();
 }
 
-// アプリ終了時にOS用のページテーブルに戻す
 void ResetCR3() {
   SetCR3(reinterpret_cast<uint64_t>(&pml4_table[0]));
 }
+
