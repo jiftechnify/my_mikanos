@@ -24,6 +24,9 @@ void SetupIdentityPageTable();
 
 void InitializePaging();
 
+// OS用のページテーブルに戻す
+void ResetCR3();
+
 // 仮想アドレスから4段ページマッピングにおける各階層のエントリインデックスを取得する操作を簡潔にするための構造体
 union LinearAddress4Level {
 	uint64_t value;
