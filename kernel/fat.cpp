@@ -1,6 +1,24 @@
 #include "fat.hpp"
 #include <cstring>
 #include <cctype>
+#include <algorithm>
+
+namespace{
+  // path_elem に最左のパス要素をコピーし、
+  // path_elemより後ろの部分を指すポインタ(next_path)とpath_elemの直後にスラッシュがあるかどうかを示すbool値(post_slash)の組を返す
+  std::pair<const char*, bool> NextPathElement(const char* path, char* path_elem) {
+    const char* next_slash = strchr(path, '/'); // path.indexOf('/')
+    if (next_slash == nullptr) {
+      strcpy(path_elem, path);
+      return { nullptr, false };
+    }
+
+    const auto elem_len = next_slash - path;
+    strncpy(path_elem, path, elem_len);
+    path_elem[elem_len] = '\0';
+    return { &next_slash[1], true };
+  }
+}
 
 namespace fat {
   BPB* boot_volume_image;
@@ -38,6 +56,14 @@ namespace fat {
     }
   }
 
+  void FormatName(const DirectoryEntry& entry, char* dest) {
+    char ext[5] = ".";
+    ReadName(entry, dest, &ext[1]);
+    if (ext[1]) {
+      strcat(dest, ext);
+    }
+  }
+
   unsigned long NextCluster(unsigned long cluster) {
     uintptr_t fat_offset =
       boot_volume_image->reserved_sector_count * boot_volume_image->bytes_per_sector;
@@ -50,20 +76,38 @@ namespace fat {
     return next;
   }
 
-  DirectoryEntry* FindFile(const char* name, unsigned long directory_cluster) {
-    if (directory_cluster == 0) {
+  std::pair<DirectoryEntry*, bool> FindFile(const char* path, unsigned long directory_cluster) {
+    if (path[0] == '/') {
+      directory_cluster = boot_volume_image->root_cluster;
+      ++path;
+    } else if (directory_cluster == 0) {
       directory_cluster = boot_volume_image->root_cluster;
     }
+    
+    char path_elem[13];
+    const auto [next_path, post_slash] = NextPathElement(path, path_elem);
+    const bool path_last = next_path == nullptr || next_path[0] == '\0';
+
     while (directory_cluster != kEndOfClusterchain) {
       auto dir = GetSectorByCluster<DirectoryEntry>(directory_cluster);
       for (int i = 0; i < bytes_per_cluster / sizeof(DirectoryEntry); ++i) {
-        if (NameIsEqual(dir[i], name)) {
-          return &dir[i];
+        if (dir[i].name[0] == 0x00) {
+          goto not_found;
+        } else if (!NameIsEqual(dir[i], path_elem)) {
+          continue;
+        }
+        if (dir[i].attr == Attribute::kDirectory && !path_last) {
+          // dir[i]が指すのは、パスの次の要素を名前に持つディレクトリ
+          return FindFile(next_path, dir[i].FirstCluster());
+        } else {
+          // dir[i]がディレクトリではないか、パスの末尾に到達したので探索をやめる
+          return { &dir[i], post_slash };
         }
       }
       directory_cluster = NextCluster(directory_cluster);
     }
-    return nullptr;
+not_found:
+    return { nullptr, post_slash };
   }
 
   bool NameIsEqual(const DirectoryEntry& entry, const char* name) {
@@ -104,5 +148,34 @@ namespace fat {
       cluster = NextCluster(cluster);
     }
     return p - buf_uint8;
+  }
+
+  FileDescriptor::FileDescriptor(DirectoryEntry& fat_entry)
+      : fat_entry_{fat_entry} {
+  }
+
+  size_t FileDescriptor::Read(void* buf, size_t len) {
+    if (rd_cluster_ == 0) {
+      rd_cluster_ = fat_entry_.FirstCluster();
+    }
+    uint8_t* buf8 = reinterpret_cast<uint8_t*>(buf);
+    len = std::min(len, fat_entry_.file_size - rd_off_);
+
+    size_t total = 0;
+    while (total < len) {
+      uint8_t* sec = GetSectorByCluster<uint8_t>(rd_cluster_);
+      size_t n = std::min(len - total, bytes_per_cluster - rd_cluster_off_);
+      memcpy(&buf8[total], &sec[rd_cluster_off_], n);
+      total += n;
+
+      rd_cluster_off_ += n;
+      if (rd_cluster_off_ == bytes_per_cluster) {
+        rd_cluster_ = NextCluster(rd_cluster_);
+        rd_cluster_off_ = 0;
+      }
+    }
+
+    rd_off_ += total;
+    return total;
   }
 } // namespace fat

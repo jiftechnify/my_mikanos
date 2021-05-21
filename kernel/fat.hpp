@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <utility>
 
 namespace fat {
   // BIOS Parameter Block
@@ -82,6 +83,9 @@ namespace fat {
   // ディレクトリエントリの短名を、基本名と拡張子に分割して取得する
   void ReadName(const DirectoryEntry& entry, char* base, char* ext);
 
+  // ディレクトリエントリの短名を整形する
+  void FormatName(const DirectoryEntry& entry, char* dest);
+
   // クラスタ末尾を表す特殊クラスタ番号
   static const unsigned long kEndOfClusterchain = 0x0ffffffflu;
 
@@ -89,12 +93,24 @@ namespace fat {
   unsigned long NextCluster(unsigned long cluster);
 
   // クラスタ番号で指定されたディレクトリ内の特定の名前のファイルを指すディレクトリエントリ
-  DirectoryEntry* FindFile(const char* name, unsigned long directory_cluster = 0);
+  std::pair<DirectoryEntry*, bool> FindFile(const char* name, unsigned long directory_cluster = 0);
 
   // ファイル名が一致するか
   bool NameIsEqual(const DirectoryEntry& entry, const char* name);
 
   // buf に entry が指すファイルの内容を読み込む
   size_t LoadFile(void* buf, size_t len, const DirectoryEntry& entry);
+
+  class FileDescriptor {
+    public:
+      explicit FileDescriptor(DirectoryEntry& fat_entry);
+      size_t Read(void* buf, size_t len);
+
+    private:
+      DirectoryEntry& fat_entry_;
+      size_t rd_off_ = 0;             // ファイル先頭からの読み込み位置のオフセット
+      unsigned long rd_cluster_ = 0;  // rd_off_が指す位置のクラスタ番号
+      size_t rd_cluster_off_ = 0;     // クラスタ先頭からのオフセット
+  }; 
 } // namespace fat
 
