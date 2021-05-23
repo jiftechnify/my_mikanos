@@ -38,6 +38,12 @@ class FrameID {
 // 未定義ページフレームを指すフレーム番号
 static const FrameID kNullFrame{std::numeric_limits<size_t>::max()};
 
+// メモリ使用状態を表す
+struct MemoryStat {
+  size_t allocated_frames;
+  size_t total_frames;
+};
+
 class BitmapMemoryManager {
   public:
     // 扱える最大物理メモリサイズ
@@ -60,6 +66,9 @@ class BitmapMemoryManager {
 
     // メモリマネージャで扱うメモリ範囲を設定(この範囲外のメモリはAllocateにより割り当てない)
     void SetMemoryRange(FrameID range_begin, FrameID range_end);
+
+    // メモリの使用状態を取得
+    MemoryStat Stat() const;
 
   private:
     std::array<MapLineType, kFrameCount / kBitsPerMapLine> alloc_map_;
