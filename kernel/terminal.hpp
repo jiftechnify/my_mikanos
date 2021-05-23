@@ -8,6 +8,7 @@
 #include "layer.hpp"
 #include "fat.hpp"
 #include "file.hpp"
+#include "paging.hpp"
 
 class Terminal {
   public:
@@ -49,6 +50,7 @@ extern std::map<uint64_t, Terminal*>* terminals;
 
 void TaskTerminal(uint64_t task_id, int64_t data);
 
+// ファイルの一種としてターミナルを利用するためのFileDescriptor実装
 class TerminalFileDescriptor : public FileDescriptor {
   public:
     explicit TerminalFileDescriptor(Task& task, Terminal& term);
@@ -61,3 +63,14 @@ class TerminalFileDescriptor : public FileDescriptor {
     Task& task_;
     Terminal& term_;
 };
+
+// アプリのELFをメモリにロードした状態を記憶する構造体
+// 同じアプリを複数起動する際、ELFをロードする代わりにこれをコピーすることで起動コストを削減する
+struct AppLoadInfo {
+  uint64_t vaddr_end; // LOADセグメントの終点(= デマンドページングの始点)
+  uint64_t entry;     // エントリポイント
+  PageMapEntry* pml4; // このアプリのページテーブルの起点
+};
+
+// アプリをキーとするAppLoadInfoのmap
+extern std::map<fat::DirectoryEntry*, AppLoadInfo>* app_loads;

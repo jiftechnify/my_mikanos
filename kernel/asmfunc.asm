@@ -71,6 +71,16 @@ SetCSSS:
   pop rbp
   ret
 
+global GetCR0 ; uint64_t GetCR0();
+GetCR0:
+  mov rax, cr0
+  ret
+
+global SetCR0 ; void SetCR3(uint64_t value);
+SetCR0:
+  mov cr0, rdi
+  ret
+
 global GetCR2 ; uint64_t GetCR2();
 GetCR2:
   mov rax, cr2
@@ -331,6 +341,11 @@ ExitApp:
 
   ret ; CallApp の次の行に飛ぶ
 
+; TLB(仮想アドレス→物理アドレス変換機構)のキャッシュを、引数のアドレスに対して無効化
+global InvalidateTLB  ; void InvalidateTLB(uint64_t addr);
+InvalidateTLB:
+  invlpg [rdi]
+  ret
 
 extern kernel_main_stack
 extern KernelMainNewStack
