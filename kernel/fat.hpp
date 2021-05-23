@@ -101,7 +101,7 @@ namespace fat {
   bool NameIsEqual(const DirectoryEntry& entry, const char* name);
 
   // buf に entry が指すファイルの内容を読み込む
-  size_t LoadFile(void* buf, size_t len, const DirectoryEntry& entry);
+  size_t LoadFile(void* buf, size_t len, DirectoryEntry& entry);
 
   // 空のファイルを作成
   WithError<DirectoryEntry*> CreateFile(const char* path);
@@ -111,6 +111,8 @@ namespace fat {
       explicit FileDescriptor(DirectoryEntry& fat_entry);
       size_t Read(void* buf, size_t len) override;
       size_t Write(const void* buf, size_t len) override;
+      size_t Size() const override { return fat_entry_.file_size; }
+      size_t Load(void* buf, size_t len, size_t offset) override;
 
     private:
       DirectoryEntry& fat_entry_;

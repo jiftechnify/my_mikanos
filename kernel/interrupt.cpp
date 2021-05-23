@@ -111,17 +111,6 @@ namespace {
   FaultHandlerNoError(XM)
   FaultHandlerNoError(VE)
 
-  Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
-    auto& task = task_manager->CurrentTask();
-    if (error_code & 1) { // 権限違反による例外
-      return MAKE_ERROR(Error::kAlreadyAllocated);
-    }
-    if (causal_addr < task.DPagingBegin() || task.DPagingEnd() <= causal_addr) {  // デマンドページングで確保可能な仮想アドレスの範囲外
-      return MAKE_ERROR(Error::kIndexOutOfRange);
-    }
-    return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
-  }
-
   __attribute__((interrupt))
   void IntHandlerPF(InterruptFrame* frame, uint64_t error_code) {
     uint64_t cr2 = GetCR2();  // PFの原因となったメモリアドレス

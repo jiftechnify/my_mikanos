@@ -26,6 +26,7 @@ void SwitchTask();
 // タスクが実行する関数の型
 using TaskFunc = void (uint64_t, int64_t);
 
+struct FileMapping;
 class TaskManager;
 
 // タスクを表すクラス
@@ -55,6 +56,10 @@ class Task {
     uint64_t DPagingEnd() const;
     void SetDPagingEnd(uint64_t v);
 
+    uint64_t FileMapEnd() const;
+    void SetFileMapEnd(uint64_t v);
+    std::vector<FileMapping>& FileMaps();
+
   private:
     uint64_t id_;
     std::vector<uint64_t> stack_;
@@ -67,6 +72,8 @@ class Task {
     std::vector<std::unique_ptr<::FileDescriptor>> files_{};
 
     uint64_t dpaging_begin_{0}, dpaging_end_{0};
+    uint64_t file_map_end_{0};
+    std::vector<FileMapping> file_maps_{};
 
     Task& SetLevel(int level) { level_ = level; return *this; }
     Task& SetRunning(bool running) { running_ = running; return *this; }
@@ -103,4 +110,11 @@ class TaskManager {
 };
 
 extern TaskManager* task_manager;
+
+// ファイルマッピングを表現する
+// ファイルが仮想アドレスのどの範囲にマップされているかの情報を持つ
+struct FileMapping {
+  int fd;
+  uint64_t vaddr_begin, vaddr_end;
+};
 

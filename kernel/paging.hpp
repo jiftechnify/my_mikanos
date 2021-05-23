@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "error.hpp"
+#include "task.hpp"
 
 /** @brief 静的に確保するページディレクトリの個数
  *
@@ -96,3 +97,4 @@ union PageMapEntry {
 
 WithError<PageMapEntry*> NewPageMap();
 Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages);
+Error HandlePageFault(uint64_t error_code, uint64_t causal_addr);

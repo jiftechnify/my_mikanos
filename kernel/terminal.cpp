@@ -474,7 +474,7 @@ void Terminal::ExecuteLine() {
 }
 
 
-Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command, char* first_arg)  {
+Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry, char* command, char* first_arg)  {
   std::vector<uint8_t> file_buf(file_entry.file_size);
   fat::LoadFile(&file_buf[0], file_buf.size(), file_entry);
 
@@ -527,11 +527,15 @@ Error Terminal::ExecuteFile(const fat::DirectoryEntry& file_entry, char* command
   task.SetDPagingBegin(elf_next_page);
   task.SetDPagingEnd(elf_next_page);
 
+  // メモリマップトファイル用のアドレス範囲の初期値を設定
+  task.SetFileMapEnd(0xffff'ffff'ffff'e000);
+
   // 実行
   auto entry_addr = elf_header->e_entry;
   int ret = CallApp(argc.value,  argv, 3 << 3 | 3, entry_addr, stack_frame_addr.value + 4096 - 8, &task.OSStackPointer()); 
 
   task.Files().clear();
+  task.FileMaps().clear();
 
   char s[64];
   sprintf(s, "app exited. ret = %d\n", ret);
@@ -704,3 +708,6 @@ size_t TerminalFileDescriptor::Write(const void* buf, size_t len) {
   return len;
 }
 
+size_t TerminalFileDescriptor::Load(void* buf, size_t len, size_t offset) {
+  return 0;
+}

@@ -103,3 +103,42 @@ Error SetupPageMaps(LinearAddress4Level addr, size_t num_4kpages) {
   auto pml4_table = reinterpret_cast<PageMapEntry*>(GetCR3());
   return SetupPageMap(pml4_table, 4, addr, num_4kpages).error;
 }
+
+const FileMapping* FindFileMapping(const std::vector<FileMapping>& fmaps, uint64_t causal_vaddr) {
+  for (const FileMapping& m : fmaps) {
+    if (m.vaddr_begin <= causal_vaddr && causal_vaddr < m.vaddr_end) {
+      return &m;
+    }
+  }
+  return nullptr;
+}
+
+// メモリマップトファイル用のページを作成し、そこにファイルの中身をコピー
+Error PreparePageCache(FileDescriptor& fd, const FileMapping& m, uint64_t causal_vaddr) {
+  LinearAddress4Level page_vaddr{causal_vaddr};
+  page_vaddr.parts.offset = 0;
+  if (auto err = SetupPageMaps(page_vaddr, 1)) {
+    return err;
+  }
+
+  const long file_offset = page_vaddr.value - m.vaddr_begin;
+  void* page_cache = reinterpret_cast<void*>(page_vaddr.value);
+  fd.Load(page_cache, 4096, file_offset);
+  return MAKE_ERROR(Error::kSuccess);
+}
+
+Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
+  auto& task = task_manager->CurrentTask();
+
+  if (error_code & 1) { // 権限違反による例外
+    return MAKE_ERROR(Error::kAlreadyAllocated);
+  }
+  if (task.DPagingBegin() <= causal_addr && causal_addr < task.DPagingEnd()) {  // デマンドページング用の領域の場合
+    return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
+  } 
+  if (auto m = FindFileMapping(task.FileMaps(), causal_addr)) { // 予約済みのファイルマッピング領域の場合
+    return PreparePageCache(*task.Files()[m->fd], *m, causal_addr);
+  }
+  return MAKE_ERROR(Error::kIndexOutOfRange);
+}
+
