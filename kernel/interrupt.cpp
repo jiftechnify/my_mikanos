@@ -7,6 +7,7 @@
 #include "task.hpp"
 #include "graphics.hpp"
 #include "font.hpp"
+#include "paging.hpp"
 
 // 割り込み記述子テーブル
 std::array<InterruptDescriptor, 256> idt;
@@ -104,13 +105,35 @@ namespace {
   FaultHandlerWithError(NP)
   FaultHandlerWithError(SS)
   FaultHandlerWithError(GP)
-  FaultHandlerWithError(PF)
   FaultHandlerNoError(MF)
   FaultHandlerWithError(AC)
   FaultHandlerNoError(MC)
   FaultHandlerNoError(XM)
   FaultHandlerNoError(VE)
 
+  Error HandlePageFault(uint64_t error_code, uint64_t causal_addr) {
+    auto& task = task_manager->CurrentTask();
+    if (error_code & 1) { // 権限違反による例外
+      return MAKE_ERROR(Error::kAlreadyAllocated);
+    }
+    if (causal_addr < task.DPagingBegin() || task.DPagingEnd() <= causal_addr) {  // デマンドページングで確保可能な仮想アドレスの範囲外
+      return MAKE_ERROR(Error::kIndexOutOfRange);
+    }
+    return SetupPageMaps(LinearAddress4Level{causal_addr}, 1);
+  }
+
+  __attribute__((interrupt))
+  void IntHandlerPF(InterruptFrame* frame, uint64_t error_code) {
+    uint64_t cr2 = GetCR2();  // PFの原因となったメモリアドレス
+    if (auto err = HandlePageFault(error_code, cr2); !err) {
+      return;
+    }
+    KillApp(frame);
+    PrintFrame(frame, "#PF");
+    WriteString(*screen_writer, {500, 16 * 4}, "ERR", {0, 0, 0});
+    PrintHex(error_code, 16, {500 + 8*4, 16*4});
+    while (true) __asm__("hlt");
+  }
 }
 
 void InitializeInterrupt() {

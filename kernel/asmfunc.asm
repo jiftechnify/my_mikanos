@@ -71,6 +71,11 @@ SetCSSS:
   pop rbp
   ret
 
+global GetCR2 ; uint64_t GetCR2();
+GetCR2:
+  mov rax, cr2
+  ret
+
 global SetCR3 ; void SetCR3(uint64_t value);
 SetCR3:
   mov cr3, rdi
