@@ -2,7 +2,7 @@
 
 #include "error.hpp"
 #include "message.hpp"
-#include "fat.hpp"
+#include "file.hpp"
 #include <array>
 #include <vector>
 #include <memory>
@@ -48,7 +48,7 @@ class Task {
     int Level() const { return level_; }
     bool Running() const { return running_; }
 
-    std::vector<std::unique_ptr<fat::FileDescriptor>>& Files();
+    std::vector<std::unique_ptr<::FileDescriptor>>& Files();
 
   private:
     uint64_t id_;
@@ -58,7 +58,7 @@ class Task {
     std::deque<Message> msgs_;  // 受け取ったメッセージを収めるキュー
     unsigned int level_{kDefaultLevel};
     bool running_{false};
-    std::vector<std::unique_ptr<fat::FileDescriptor>> files_{};
+    std::vector<std::unique_ptr<::FileDescriptor>> files_{};
 
     Task& SetLevel(int level) { level_ = level; return *this; }
     Task& SetRunning(bool running) { running_ = running; return *this; }

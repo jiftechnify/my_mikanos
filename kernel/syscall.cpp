@@ -382,6 +382,11 @@ SYSCALL(OpenFile) {
   auto& task = task_manager->CurrentTask();
   __asm__("sti");
 
+  // @stdin が指定された場合は標準入力(fd = 0)を返す
+  if (strcmp(path, "@stdin") == 0) {
+    return { 0, 0 };
+  }
+
   if ((flags & O_ACCMODE) == O_WRONLY) {
     return { 0, EINVAL };
   }

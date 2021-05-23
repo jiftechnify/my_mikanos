@@ -1,5 +1,6 @@
 #pragma once
 
+#include "file.hpp"
 #include <cstdint>
 #include <cstddef>
 #include <utility>
@@ -101,10 +102,10 @@ namespace fat {
   // buf に entry が指すファイルの内容を読み込む
   size_t LoadFile(void* buf, size_t len, const DirectoryEntry& entry);
 
-  class FileDescriptor {
+  class FileDescriptor : public ::FileDescriptor {
     public:
       explicit FileDescriptor(DirectoryEntry& fat_entry);
-      size_t Read(void* buf, size_t len);
+      size_t Read(void* buf, size_t len) override;
 
     private:
       DirectoryEntry& fat_entry_;
