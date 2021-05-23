@@ -1,6 +1,7 @@
 #pragma once
 
 #include "file.hpp"
+#include "error.hpp"
 #include <cstdint>
 #include <cstddef>
 #include <utility>
@@ -102,16 +103,25 @@ namespace fat {
   // buf に entry が指すファイルの内容を読み込む
   size_t LoadFile(void* buf, size_t len, const DirectoryEntry& entry);
 
+  // 空のファイルを作成
+  WithError<DirectoryEntry*> CreateFile(const char* path);
+
   class FileDescriptor : public ::FileDescriptor {
     public:
       explicit FileDescriptor(DirectoryEntry& fat_entry);
       size_t Read(void* buf, size_t len) override;
+      size_t Write(const void* buf, size_t len) override;
 
     private:
       DirectoryEntry& fat_entry_;
+      
       size_t rd_off_ = 0;             // ファイル先頭からの読み込み位置のオフセット
       unsigned long rd_cluster_ = 0;  // rd_off_が指す位置のクラスタ番号
       size_t rd_cluster_off_ = 0;     // クラスタ先頭からのオフセット
+
+      size_t wr_off_ = 0;             // 以下、書き込み位置のオフセット
+      unsigned long wr_cluster_ = 0;
+      size_t wr_cluster_off_ = 0;
   }; 
 } // namespace fat
 
