@@ -49,7 +49,7 @@ class Task {
     int Level() const { return level_; }
     bool Running() const { return running_; }
 
-    std::vector<std::unique_ptr<::FileDescriptor>>& Files();
+    std::vector<std::shared_ptr<::FileDescriptor>>& Files();
 
     uint64_t DPagingBegin() const;
     void SetDPagingBegin(uint64_t v);
@@ -69,7 +69,7 @@ class Task {
     unsigned int level_{kDefaultLevel};
     bool running_{false};
 
-    std::vector<std::unique_ptr<::FileDescriptor>> files_{};
+    std::vector<std::shared_ptr<::FileDescriptor>> files_{};
 
     uint64_t dpaging_begin_{0}, dpaging_end_{0};
     uint64_t file_map_end_{0};
