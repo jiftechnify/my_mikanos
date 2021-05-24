@@ -25,7 +25,7 @@ class Terminal {
     Task& UnderlyingTask() const { return task_; }
 
     void ExecuteLine();
-    Error ExecuteFile(fat::DirectoryEntry& entry, char* command, char* first_arg);
+    WithError<int> ExecuteFile(fat::DirectoryEntry& entry, char* command, char* first_arg);
 
   private:
     std::shared_ptr<ToplevelWindow> window_;
@@ -33,6 +33,7 @@ class Terminal {
     Task& task_;
     bool show_window_;
     std::array<std::shared_ptr<FileDescriptor>, 3> files_;  // stdin/out/err
+    int last_exit_code_{0};
 
     Vector2D<int> cursor_{0, 0};
     bool cursor_visible_{false};
