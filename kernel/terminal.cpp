@@ -522,8 +522,9 @@ Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry, char* command, char
   }
 
   // アプリが利用できるスタック領域を用意
-  LinearAddress4Level stack_frame_addr{0xffff'ffff'ffff'e000};
-  if (auto err = SetupPageMaps(stack_frame_addr, 1)) {
+  const int stack_size = 8 * 4096;
+  LinearAddress4Level stack_frame_addr{0xffff'ffff'ffff'f000 - stack_size};
+  if (auto err = SetupPageMaps(stack_frame_addr, stack_size / 4096)) {
     return err;
   }
 
@@ -538,11 +539,11 @@ Error Terminal::ExecuteFile(fat::DirectoryEntry& file_entry, char* command, char
   task.SetDPagingEnd(elf_next_page);
 
   // メモリマップトファイル用のアドレス範囲の初期値を設定
-  task.SetFileMapEnd(0xffff'ffff'ffff'e000);
+  task.SetFileMapEnd(stack_frame_addr.value);
 
   // 実行
   auto entry_addr = app_load.entry;
-  int ret = CallApp(argc.value,  argv, 3 << 3 | 3, entry_addr, stack_frame_addr.value + 4096 - 8, &task.OSStackPointer()); 
+  int ret = CallApp(argc.value,  argv, 3 << 3 | 3, entry_addr, stack_frame_addr.value + stack_size - 8, &task.OSStackPointer()); 
 
   task.Files().clear();
   task.FileMaps().clear();
