@@ -10,6 +10,7 @@
 #include <optional>
 #include <cstdint>
 #include <cstddef>
+#include <map>
 
 // タスクコンテキストの保存先
 struct TaskContext {
@@ -98,12 +99,17 @@ class TaskManager {
 
     Error SendMessage(uint64_t id, const Message& msg);
 
+    WithError<int> WaitFinish(uint64_t task_id);
+    void Finish(int exit_code); // 呼び出したタスクを指定終了コードで終了させる
+
   private:
     std::vector<std::unique_ptr<Task>> tasks_{};
     uint64_t latest_id_{0};
     std::array<std::deque<Task*>, kMaxLevel + 1> running_{}; // 実行可能状態のタスクを並べるキュー(優先度レベル別)
     int current_level_{kMaxLevel};
     bool level_changed_{false};
+    std::map<uint64_t, int> finish_tasks_{};    // 終了したタスクの終了コードを記録
+    std::map<uint64_t, Task*> finish_waiter_{}; // タスクと、そのタスクの終了を待っているタスクの対応づけ
 
     void ChangeLevelRunning(Task* task, int level);
     Task* RotateCurrentRunQueue(bool current_sleep);

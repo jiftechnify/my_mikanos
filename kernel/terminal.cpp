@@ -174,12 +174,21 @@ namespace {
   }
 }
 
-Terminal::Terminal(Task& task, bool show_window)
-    : task_{task}, show_window_{show_window} {
-  for (int i = 0; i < files_.size(); ++i) {
-    files_[i] = std::make_shared<TerminalFileDescriptor>(*this);
+Terminal::Terminal(Task& task, const TerminalDescriptor* term_desc)
+    : task_{task} {
+  if (term_desc) {
+    show_window_ = term_desc->show_window;
+    for (int i = 0; i < files_.size(); ++i) {
+      files_[i] = term_desc->files[i];
+    }
+  } else {
+    show_window_ = true;
+    for (int i = 0; i < files_.size(); ++i) {
+      files_[i] = std::make_shared<TerminalFileDescriptor>(*this);
+    }
   }
-  if (show_window) {
+
+  if (show_window_) {
     window_ = std::make_shared<ToplevelWindow>(
       kColumns * 8 + 8 + ToplevelWindow::kMarginX,
       kRows * 16 + 8 + ToplevelWindow::kMarginY,
@@ -330,10 +339,20 @@ void Terminal::Print(const char* s, std::optional<size_t> len) {
   __asm__("sti");
 }
 
+void Terminal::Redraw() {
+  Rectangle<int> draw_area{ToplevelWindow::kTopLeftMargin, window_->InnerSize()};
+  Message msg = MakeLayerMessage(
+      task_.ID(), LayerID(), LayerOperation::DrawArea, draw_area);
+  __asm__("cli");
+  task_manager->SendMessage(1, msg);
+  __asm__("sti");
+}
+
 void Terminal::ExecuteLine() {
   char* command = &linebuf_[0];
   char* first_arg = strchr(&linebuf_[0], ' ');
   char* redir_char = strchr(&linebuf_[0], '>');
+  char* pipe_char = strchr(&linebuf_[0], '|');
 
   if (first_arg) {
     *first_arg = 0;
@@ -343,6 +362,7 @@ void Terminal::ExecuteLine() {
   auto original_stdout = files_[1];
   int exit_code = 0;
 
+  // 出力リダイレクトがある場合、指定ファイルを開いて標準出力をそのファイルに差し替える
   if (redir_char) {
     *redir_char = 0;
     char* redir_dest = &redir_char[1];
@@ -363,6 +383,32 @@ void Terminal::ExecuteLine() {
       return;
     }
     files_[1] = std::make_shared<fat::FileDescriptor>(*file);
+  }
+
+  std::shared_ptr<PipeDescriptor> pipe_fd;
+  uint64_t subtask_id = 0;
+
+  // パイプが指定された場合、パイプの後ろのコマンドをサブタスク上で実行
+  // このタスクの標準出力 -> パイプ -> サブタスクの標準入力 となるように fd を差し替える
+  if (pipe_char) {
+    *pipe_char = 0;
+    char* subcommand = &pipe_char[1];
+    while (isspace(*subcommand)) {
+      ++subcommand;
+    }
+
+    auto& subtask = task_manager->NewTask();
+    pipe_fd = std::make_shared<PipeDescriptor>(subtask);
+    auto term_desc = new TerminalDescriptor{
+      subcommand, true, false,
+      { pipe_fd, files_[1], files_[2] }
+    };
+    files_[1] = pipe_fd;
+
+    subtask_id = subtask
+      .InitContext(TaskTerminal, reinterpret_cast<int64_t>(term_desc))
+      .Wakeup()
+      .ID();
   }
 
   if (strcmp(command, "echo") == 0) {
@@ -426,27 +472,24 @@ void Terminal::ExecuteLine() {
       exit_code = 1;
     } else {
       fat::FileDescriptor fd{*file_entry};
-      char u8buf[5];
+      char u8buf[1024];
 
       DrawCursor(false);
       while (true) {
-        if (fd.Read(&u8buf[0], 1) != 1) {
+        if (ReadDelim(fd, '\n', u8buf, sizeof(u8buf)) == 0) {
           break;
         }
-        const int u8_remain = CountUTF8Size(u8buf[0]) - 1;
-        if (u8_remain > 0 && fd.Read(&u8buf[1], u8_remain) != u8_remain) {
-          break;
-        }
-        u8buf[u8_remain + 1] = 0;
-
         PrintToFD(*files_[1], "%s", u8buf);
       }
       DrawCursor(true);
     }
   }
   else if (strcmp(command, "noterm") == 0) {
+    auto term_desc = new TerminalDescriptor{
+      first_arg, true, false, files_
+    };
     task_manager->NewTask()
-      .InitContext(TaskTerminal, reinterpret_cast<int64_t>(first_arg))
+      .InitContext(TaskTerminal, reinterpret_cast<int64_t>(term_desc))
       .Wakeup();
   }
   else if (strcmp(command, "memstat") == 0 ) {
@@ -478,6 +521,18 @@ void Terminal::ExecuteLine() {
         exit_code = ec;
       }
     }
+  }
+
+  // こちらのタスクが終了したら、パイプに出力の終了を伝え、サブタスクの終了を待つ
+  if (pipe_fd) {
+    pipe_fd->FinishWrite();
+    __asm__("cli");
+    auto [ec, err] = task_manager->WaitFinish(subtask_id);
+    __asm__("sti");
+    if (err) {
+      Log(kWarn, "failed to wait finish: %s\n", err.Name());
+    }
+    exit_code = ec;
   }
 
   last_exit_code_ = exit_code;
@@ -633,12 +688,15 @@ Rectangle<int> Terminal::HistoryUpDown(int direction) {
 }
 
 void TaskTerminal(uint64_t task_id, int64_t data) {
-  const char* command_line = reinterpret_cast<char*>(data);
-  const bool show_window = command_line == nullptr;
+  const auto term_desc = reinterpret_cast<TerminalDescriptor*>(data);
+  bool show_window = true;
+  if (term_desc) {
+    show_window = term_desc->show_window;
+  }
 
   __asm__("cli");
   Task& task = task_manager->CurrentTask();
-  Terminal* terminal = new Terminal(task, show_window);
+  Terminal* terminal = new Terminal{task, term_desc};
   if (show_window) {
     layer_manager->Move(terminal->LayerID(), {100, 200});
     layer_task_map->insert(std::make_pair(terminal->LayerID(), task_id));
@@ -646,11 +704,18 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
   }
   __asm__("sti");
 
-  if (command_line) {
-    for (int i = 0; command_line[i] != '\0'; ++i) {
-      terminal->InputKey(0, 0, command_line[i]);
+  if (term_desc && !term_desc->command_line.empty()) {
+    for (int i = 0; i < term_desc->command_line.length(); ++i) {
+      terminal->InputKey(0, 0, term_desc->command_line[i]);
     }
     terminal->InputKey(0, 0, '\n');
+  }
+
+  if (term_desc && term_desc->exit_after_command) {
+    delete term_desc;
+    __asm__("cli");
+    task_manager->Finish(terminal->LastExitCode());
+    __asm__("sti");
   }
 
   auto add_blink_timer = [task_id](unsigned long t) {
@@ -733,12 +798,14 @@ size_t TerminalFileDescriptor::Read(void* buf, size_t len) {
 
     bufc[0] = msg->arg.keyboard.ascii;
     term_.Print(bufc, 1);
+    term_.Redraw();
     return 1;
   }
 }
 
 size_t TerminalFileDescriptor::Write(const void* buf, size_t len) {
   term_.Print(reinterpret_cast<const char*>(buf), len);
+  term_.Redraw();
   return len;
 }
 
@@ -748,3 +815,67 @@ size_t TerminalFileDescriptor::Load(void* buf, size_t len, size_t offset) {
 
 std::map<fat::DirectoryEntry*, AppLoadInfo>* app_loads;
 
+/**
+ * PipeDescriptor
+ */
+PipeDescriptor::PipeDescriptor(Task& task) : task_{task} {}
+
+size_t PipeDescriptor::Read(void* buf, size_t len) {
+  if (len_ > 0) {
+    const size_t copy_bytes = std::min(len_, len);
+    memcpy(buf, data_, copy_bytes);
+    len_ -= copy_bytes;
+    memmove(data_, &data_[copy_bytes], len_);
+    return copy_bytes;
+  }
+  if (closed_) {
+    return 0;
+  }
+  while (true) {
+    __asm__("cli");
+    auto msg = task_.ReceiveMessage();
+    if (!msg) {
+      task_.Sleep();
+      continue;
+    }
+    __asm__("sti");
+
+    if (msg->type != Message::kPipe) {
+      continue;
+    }
+
+    if (msg->arg.pipe.len == 0) {
+      closed_ = true;
+      return 0;
+    }
+
+    const size_t copy_bytes = std::min<size_t>(msg->arg.pipe.len, len);
+    memcpy(buf, msg->arg.pipe.data, copy_bytes);
+    len_ = msg->arg.pipe.len - copy_bytes;
+    memcpy(data_, &msg->arg.pipe.data[copy_bytes], len_);
+    return copy_bytes;
+  }
+}
+
+size_t PipeDescriptor::Write(const void* buf, size_t len) {
+  auto bufc = reinterpret_cast<const char*>(buf);
+  Message msg{Message::kPipe};
+  size_t sent_bytes = 0;
+  while (sent_bytes < len) {
+    msg.arg.pipe.len = std::min(len - sent_bytes, sizeof(msg.arg.pipe.data));
+    memcpy(msg.arg.pipe.data, &bufc[sent_bytes], msg.arg.pipe.len);
+    sent_bytes += msg.arg.pipe.len;
+    __asm__("cli");
+    task_.SendMessage(msg);
+    __asm__("sti");
+  }
+  return len;
+}
+
+void PipeDescriptor::FinishWrite() {
+  Message msg{Message::kPipe};
+  msg.arg.pipe.len = 0;
+  __asm__("cli");
+  task_.SendMessage(msg);
+  __asm__("sti");
+}
