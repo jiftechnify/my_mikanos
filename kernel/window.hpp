@@ -6,6 +6,13 @@
 #include "graphics.hpp"
 #include "frame_buffer.hpp"
 
+enum class WindowRegion {
+  kTitleBar,
+  kCloseButton,
+  kBorder,
+  kOther,
+};
+
 /* 画面上の(Layer上の)矩形領域 */
 class Window {
   public:
@@ -56,6 +63,7 @@ class Window {
     int Width() const;
     int Height() const;
     Vector2D<int> Size() const;
+    virtual WindowRegion GetWindowRegion(Vector2D<int> pos);
 
     // アクティブ状態切り替え(実装は各種サブクラスが行う)
     virtual void Activate() {}
@@ -101,6 +109,8 @@ class ToplevelWindow : public Window {
 
     InnerAreaWriter* InnerWriter() { return &inner_writer_; }
     Vector2D<int> InnerSize() const;
+    
+    virtual WindowRegion GetWindowRegion(Vector2D<int> pos) override;
 
   private:
     std::string title_;

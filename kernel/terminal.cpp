@@ -373,7 +373,9 @@ void Terminal::ExecuteLine() {
 
   if (first_arg) {
     *first_arg = 0;
-    ++first_arg;
+    do {
+      ++first_arg;
+    } while (isspace(*first_arg));
   }
 
   auto original_stdout = files_[1];
@@ -426,6 +428,7 @@ void Terminal::ExecuteLine() {
       .InitContext(TaskTerminal, reinterpret_cast<int64_t>(term_desc))
       .Wakeup()
       .ID();
+    (*layer_task_map)[layer_id_] = subtask_id;
   }
 
   if (strcmp(command, "echo") == 0) {
@@ -478,22 +481,28 @@ void Terminal::ExecuteLine() {
     }
   }
   else if (strcmp(command, "cat") == 0) {
-    auto [file_entry, post_slash] = fat::FindFile(first_arg);
-    if (!file_entry) {
-      PrintToFD(*files_[2], "no such file: %s\n", first_arg);
-      exit_code = 1;
-    } else if (file_entry->attr != fat::Attribute::kDirectory && post_slash) {
-      char name[13];
-      fat::FormatName(*file_entry, name);
-      PrintToFD(*files_[2], "%s is not a directory\n", name);
-      exit_code = 1;
+    std::shared_ptr<FileDescriptor> fd;
+    if (!first_arg || first_arg[0] == '\0') {
+      fd = files_[0];
     } else {
-      fat::FileDescriptor fd{*file_entry};
+      auto [file_entry, post_slash] = fat::FindFile(first_arg);
+      if (!file_entry) {
+        PrintToFD(*files_[2], "no such file: %s\n", first_arg);
+        exit_code = 1;
+      } else if (file_entry->attr != fat::Attribute::kDirectory && post_slash) {
+        char name[13];
+        fat::FormatName(*file_entry, name);
+        PrintToFD(*files_[2], "%s is not a directory\n", name);
+        exit_code = 1;
+      } else {
+        fd = std::make_shared<fat::FileDescriptor>(*file_entry);
+      }
+    }
+    if (fd) {
       char u8buf[1024];
-
       DrawCursor(false);
       while (true) {
-        if (ReadDelim(fd, '\n', u8buf, sizeof(u8buf)) == 0) {
+        if (ReadDelim(*fd, '\n', u8buf, sizeof(u8buf)) == 0) {
           break;
         }
         PrintToFD(*files_[1], "%s", u8buf);
@@ -540,6 +549,7 @@ void Terminal::ExecuteLine() {
     pipe_fd->FinishWrite();
     __asm__("cli");
     auto [ec, err] = task_manager->WaitFinish(subtask_id);
+    (*layer_task_map)[layer_id_] = task_.ID();
     __asm__("sti");
     if (err) {
       Log(kWarn, "failed to wait finish: %s\n", err.Name());
@@ -771,6 +781,11 @@ void TaskTerminal(uint64_t task_id, int64_t data) {
       break;
     case Message::kWindowActive:
       window_isactive = msg->arg.window_active.activate;
+      break;
+    case Message::kWindowClose:
+      CloseLayer(msg->arg.window_close.layer_id);
+      __asm__("cli");
+      task_manager->Finish(terminal->LastExitCode());
       break;
     default:
       break;

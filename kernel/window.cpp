@@ -79,6 +79,10 @@ int Window::Height() const {
   return height_;
 }
 
+WindowRegion Window::GetWindowRegion(Vector2D<int> pos) {
+  return WindowRegion::kOther;
+}
+
 Vector2D<int> Window::Size() const {
   return {width_, height_};
 }
@@ -122,6 +126,20 @@ void ToplevelWindow::Deactivate() {
 
 Vector2D<int> ToplevelWindow::InnerSize() const {
   return Size() - kTopLeftMargin - kBottomRightMargin;
+}
+
+WindowRegion ToplevelWindow::GetWindowRegion(Vector2D<int> pos) {
+  if (pos.x < 2 || Width() - 2 <= pos.x ||
+      pos.y < 2 || Height() - 2 <= pos.y) {
+    return WindowRegion::kBorder;
+  } else if (pos.y < kTopLeftMargin.y) {
+    if (Width() - 5 - kCloseButtonWidth <= pos.x && pos.x < Width() - 5 &&
+        5 <= pos.y && pos.y < 5 + kCloseButtonHeight) {
+      return WindowRegion::kCloseButton;
+    }
+    return WindowRegion::kTitleBar;
+  }
+  return WindowRegion::kOther;
 }
 
 void DrawWindow(PixelWriter& writer, const char* title) {
