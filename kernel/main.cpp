@@ -30,7 +30,6 @@
 #include "window.hpp"
 #include "layer.hpp"
 #include "message.hpp"
-#include "grayscale_image.hpp"
 #include "timer.hpp"
 #include "acpi.hpp"
 #include "keyboard.hpp"
@@ -117,23 +116,6 @@ void InputTextWindow(char c) {
   layer_manager->Draw(text_window_layer_id);
 }
 
-std::shared_ptr<ToplevelWindow> aegis_window;
-unsigned int aegis_window_layer_id;
-void InitializeAegisWindow() {
-  auto img = MakeGrayscaleAegis();
-
-  aegis_window = std::make_shared<ToplevelWindow>(92, 164, screen_config.pixel_format, "Aegis");
-  DrawGrayscale4GradsImageScaled(*aegis_window->InnerWriter(), {2, 0}, 4, img);
-  
-  aegis_window_layer_id = layer_manager->NewLayer()
-    .SetWindow(aegis_window)
-    .SetDraggable(true)
-    .Move({650, 300})
-    .ID();
-
-  layer_manager->UpDown(aegis_window_layer_id, std::numeric_limits<int>::max());
-}
-
 alignas(16) uint8_t kernel_main_stack[1024 * 1024];
 
 extern "C" void KernelMainNewStack(
@@ -162,7 +144,6 @@ extern "C" void KernelMainNewStack(
   InitializeLayer();
   InitializeMainWindow();
   InitializeTextWindow();
-  InitializeAegisWindow();
   layer_manager->Draw({{0, 0}, ScreenSize()});
 
   acpi::Initialize(acpi_table);
